@@ -1,16 +1,15 @@
 // app/api/brevo/route.ts
-// FIX build : createServerSupabaseClient() est async → il faut await
-// Erreur originale : "Property 'auth' does not exist on type 'Promise<...>'"
-// Cause : on appelait supabase.auth sans avoir attendu la résolution de la Promise
+// ✅ FIX : await createServerSupabaseClient() — sans await = crash TypeScript
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
-    //  FIX : await obligatoire — createServerSupabaseClient() retourne une Promise
+    // ✅ await obligatoire — la fonction est async
     const supabase = await createServerSupabaseClient();
 
-    // Get the authenticated user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -19,31 +18,39 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { leadId, leadTitle, recipientEmail, recipientName } = body;
 
-    const BREVO_API_KEY   = process.env.BREVO_API_KEY;
-    const SENDER_EMAIL    = process.env.BREVO_SENDER_EMAIL ?? 'noreply@aaas-crm.fr';
-    const SENDER_NAME     = process.env.BREVO_SENDER_NAME  ?? 'AAAS CRM';
+    const BREVO_API_KEY = process.env.BREVO_API_KEY;
+    const SENDER_EMAIL  = process.env.BREVO_SENDER_EMAIL ?? 'noreply@aaas-crm.fr';
+    const SENDER_NAME   = process.env.BREVO_SENDER_NAME  ?? 'AAAS CRM';
 
     if (!BREVO_API_KEY) {
-      return NextResponse.json({ error: 'BREVO_API_KEY manquante' }, { status: 500 });
+      return NextResponse.json({ error: 'BREVO_API_KEY manquante dans Vercel env vars' }, { status: 500 });
     }
 
-    // Construire l'email
-    const toEmail = recipientEmail ?? user.email;
-    const toName  = recipientName  ?? user.email;
+    const toEmail = recipientEmail ?? user.email!;
+    const toName  = recipientName  ?? toEmail;
 
     const htmlContent = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px;">
-        <h2 style="color: #6366f1;">AAAS CRM — Nouveau lead</h2>
-        <p>Un nouveau lead a été créé :</p>
-        <div style="background: #f8fafc; border-left: 4px solid #6366f1; padding: 16px; border-radius: 8px; margin: 16px 0;">
-          <strong>${leadTitle ?? 'Nouveau lead'}</strong><br/>
-          <small style="color: #64748b;">ID : ${leadId ?? 'N/A'}</small>
+      <div style="font-family:sans-serif;max-width:600px;margin:auto;padding:32px;background:#0f1629;color:#e2e8f0;border-radius:16px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+          <div style="width:40px;height:40px;background:#6366f1;border-radius:10px;display:flex;align-items:center;justify-content:center;">
+            <span style="color:white;font-weight:900;font-style:italic;font-size:18px;">A</span>
+          </div>
+          <span style="color:white;font-weight:900;font-size:20px;letter-spacing:-0.5px;">AAAS CRM</span>
         </div>
-        <p style="color: #64748b; font-size: 14px;">
-          Connectez-vous à votre CRM pour voir les détails.
+        <h2 style="color:white;font-size:22px;margin:0 0 8px;">Nouveau lead créé</h2>
+        <p style="color:#94a3b8;margin:0 0 24px;">Un nouveau lead a été ajouté à votre pipeline.</p>
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:20px;margin-bottom:24px;">
+          <p style="color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:2px;margin:0 0 8px;">Lead</p>
+          <p style="color:white;font-weight:700;font-size:18px;margin:0 0 4px;">${leadTitle ?? 'Nouveau lead'}</p>
+          <p style="color:#64748b;font-size:13px;margin:0;">ID : ${leadId ?? 'N/A'}</p>
+        </div>
+        <a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'https://votre-crm.vercel.app'}/pipeline"
+           style="display:inline-block;background:#6366f1;color:white;font-weight:700;padding:12px 24px;border-radius:10px;text-decoration:none;font-size:14px;">
+          Voir dans le pipeline →
+        </a>
+        <p style="color:#334155;font-size:12px;margin-top:32px;border-top:1px solid #1e293b;padding-top:16px;">
+          AAAS CRM · Automatisation digitale · Envoyé via Brevo
         </p>
-        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-        <p style="color: #94a3b8; font-size: 12px;">AAAS CRM · Automatisation digitale</p>
       </div>
     `;
 
@@ -76,9 +83,6 @@ export async function POST(req: NextRequest) {
 
   } catch (err: any) {
     console.error('Brevo route error:', err);
-    return NextResponse.json(
-      { error: err.message ?? 'Erreur serveur' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err.message ?? 'Erreur serveur' }, { status: 500 });
   }
 }

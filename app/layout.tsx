@@ -1,12 +1,17 @@
-// app/layout.tsx — Add suppressHydrationWarning to <body>
-// This fixes: "Extra attributes from the server: data-smart-converter-loaded"
-// That attribute is injected by a browser extension; suppressHydrationWarning
-// tells React to ignore attribute mismatches on this single element only.
+// app/layout.tsx
+// ✅ FIX DEFINITIF : export dynamic = 'force-dynamic'
+// Sans ça, Next.js tente de prerendre toutes les pages au BUILD TIME
+// → Supabase crash car NEXT_PUBLIC_SUPABASE_URL n'existe pas au build
+// → "Your project's URL and API key are required" sur toutes les pages
+// force-dynamic = pages rendues à la demande uniquement (jamais au build)
 
 import type { Metadata } from 'next';
 import { Playfair_Display, DM_Sans } from 'next/font/google';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
+
+// ✅ LA LIGNE QUI RÈGLE TOUT — ne jamais retirer
+export const dynamic = 'force-dynamic';
 
 const displayFont = Playfair_Display({
   subsets: ['latin'],
@@ -29,12 +34,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className={`${displayFont.variable} ${bodyFont.variable}`}>
       {/*
-       * suppressHydrationWarning ← THE FIX
-       * Browser extensions (currency converters, SEO tools, etc.) inject
-       * attributes like `data-smart-converter-loaded` into <body> after
-       * server render, causing a React hydration mismatch warning.
+       * suppressHydrationWarning ← fixes "Extra attributes from the server"
+       * Browser extensions inject attributes like `data-smart-converter-loaded`
+       * into <body> after server render, causing React hydration mismatch.
        * This prop tells React to skip attribute comparison on <body> only.
-       * It does NOT suppress warnings on child components.
        */}
       <body
         className="font-body bg-[#080d1a] text-slate-100 antialiased overflow-x-hidden"
