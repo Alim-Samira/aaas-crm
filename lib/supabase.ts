@@ -20,7 +20,7 @@ export function getSupabaseClient() {
       auth: {
         // Désactive le LockManager — corrige l'erreur "lock timed out 10000ms"
         // Nécessaire quand le projet est dans OneDrive ou exécuté via WSL
-        lock: async (name, acquireTimeout, fn) => {
+        lock: async (name: string, acquireTimeout: number, fn: Function) => {
           // Bypasse le lock : exécute directement sans attendre
           return fn();
         },
