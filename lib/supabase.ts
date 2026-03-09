@@ -1,11 +1,5 @@
 // lib/supabase.ts
-// ─────────────────────────────────────────────────────────────
-// Browser-safe singleton Supabase client
-// ─────────────────────────────────────────────────────────────
-// FIX: "Navigator LockManager lock timed out" est causé par OneDrive/WSL
-// qui bloque l'API navigator.locks utilisée par @supabase/ssr pour stocker
-// les tokens. La solution : désactiver le lock et utiliser le localStorage direct.
-
+// ✅ FIX DEFENSIF : ne crash pas si variables d'env absentes
 import { createBrowserClient } from '@supabase/ssr';
 
 let client: ReturnType<typeof createBrowserClient> | null = null;
@@ -13,18 +7,19 @@ let client: ReturnType<typeof createBrowserClient> | null = null;
 export function getSupabaseClient() {
   if (client) return client;
 
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !key) {
+    console.error('❌ Variables Supabase manquantes dans Vercel → Settings → Environment Variables');
+  }
+
   client = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    url ?? 'https://placeholder.supabase.co',
+    key ?? 'placeholder-anon-key',
     {
       auth: {
-        // Désactive le LockManager — corrige l'erreur "lock timed out 10000ms"
-        // Nécessaire quand le projet est dans OneDrive ou exécuté via WSL
-        lock: async (name: string, acquireTimeout: number, fn: Function) => {
-          // Bypasse le lock : exécute directement sans attendre
-          return fn();
-        },
-        // Stockage des tokens dans localStorage classique
+        lock: async (_name: string, _timeout: number, fn: Function) => fn(),
         storage: typeof window !== 'undefined' ? window.localStorage : undefined,
         flowType: 'pkce',
         detectSessionInUrl: true,
@@ -36,5 +31,4 @@ export function getSupabaseClient() {
   return client;
 }
 
-// Export direct pour compatibilité
 export const supabase = getSupabaseClient();
