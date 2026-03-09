@@ -2,9 +2,9 @@
 // FIXES: leads_assigned_to_fkey | 409 Conflict | 403 on profile upsert
 // Requires patch_v1.2.sql to be run in Supabase first.
 // app/pipeline/page.tsx
-// ✅ FIX multi-click: disabled + loading state sur login
-// ✅ NOUVEAU: bouton Modifier sur chaque lead (crayon)
-// ✅ FIX commercial: assigned_to = user.id à la création
+//  FIX multi-click: disabled + loading state sur login
+//  NOUVEAU: bouton Modifier sur chaque lead (crayon)
+//  FIX commercial: assigned_to = user.id à la création
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -51,7 +51,7 @@ function LeadCard({ lead, index, onEdit, onDelete }: {
               {lead.title}
             </p>
             <div className="flex items-center gap-1 flex-shrink-0">
-              {/* ✅ Bouton Modifier */}
+              {/*  Bouton Modifier */}
               <button
                 onClick={e => { e.stopPropagation(); onEdit(lead); }}
                 className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-white/10 hover:bg-indigo-500/30
@@ -61,7 +61,7 @@ function LeadCard({ lead, index, onEdit, onDelete }: {
               >
                 <Pencil className="w-3 h-3" />
               </button>
-              {/* ✅ Bouton Supprimer */}
+              {/*  Bouton Supprimer */}
               <button
                 onClick={e => { e.stopPropagation(); onDelete(lead.id); }}
                 className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-white/10 hover:bg-rose-500/30

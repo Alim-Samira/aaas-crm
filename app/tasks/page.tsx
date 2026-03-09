@@ -191,7 +191,7 @@ function TaskCard({ task, onEdit, onDelete, onDragStart }: {
     >
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-semibold text-white leading-snug flex-1 line-clamp-2">{task.title}</p>
-        {/* ✅ Boutons Modifier + Supprimer */}
+        {/*  Boutons Modifier + Supprimer */}
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
           <button
             onClick={e => { e.stopPropagation(); onEdit(task); }}

@@ -28,7 +28,7 @@ const ROLE_CFG: Record<AppRole, { label: string; labelFr: string; icon: React.El
 const MODULES     = ['dashboard','pipeline','contacts','companies','tasks','settings'];
 const MOD_LABELS: Record<string,string> = {
   dashboard:'📊 Dashboard', pipeline:'🎯 Pipeline', contacts:'👤 Contacts',
-  companies:'🏢 Entreprises', tasks:'✅ Tâches', settings:'⚙️ Paramètres',
+  companies:'🏢 Entreprises', tasks:' Tâches', settings:'⚙️ Paramètres',
 };
 
 type Tab = 'profile' | 'requests' | 'users' | 'permissions' | 'campaigns';
@@ -221,7 +221,7 @@ function PermissionsMatrix() {
 
 /* ══════════════════════════════════════════════════════════════
    USER MANAGEMENT
-   ✅ FIX : signUp() ne crée pas de profil visible en prod
+    FIX : signUp() ne crée pas de profil visible en prod
    → on crée via la table profiles directement après signup
    → on recharge depuis profiles (pas depuis auth.users)
 ══════════════════════════════════════════════════════════════ */
@@ -241,7 +241,7 @@ function UserManagementPanel() {
 
   useEffect(() => { load(); }, []);
 
-  // ✅ FIX : charge depuis public.profiles (pas auth.admin.listUsers qui nécessite service_role)
+  //  FIX : charge depuis public.profiles (pas auth.admin.listUsers qui nécessite service_role)
   async function load() {
     setLoading(true);
     const { data } = await supabase
@@ -259,7 +259,7 @@ function UserManagementPanel() {
     setSaving(true); setError(''); setFeedback('');
 
     try {
-      // ✅ FIX USERS NON VISIBLES :
+      //  FIX USERS NON VISIBLES :
       // On passe par l'API route /api/admin/create-user qui utilise
       // le service_role pour créer l'utilisateur ET le profil immédiatement.
       // signUp() côté client ne fonctionnait pas en prod (confirmation email requise).
@@ -282,7 +282,7 @@ function UserManagementPanel() {
         return;
       }
 
-      setFeedback(`✅ Compte créé : ${invEmail}`);
+      setFeedback(` Compte créé : ${invEmail}`);
       setInvEmail(''); setInvName(''); setInvPwd('');
       setShowForm(false);
       // Recharger immédiatement (le profil est déjà en base)
@@ -428,7 +428,7 @@ function UserManagementPanel() {
 
 /* ══════════════════════════════════════════════════════════════
    CAMPAGNES EMAIL — Brevo
-   ✅ NOUVEAU : Automatisation emailing et communication digitale
+    NOUVEAU : Automatisation emailing et communication digitale
 ══════════════════════════════════════════════════════════════ */
 interface Campaign {
   id: string;
@@ -488,7 +488,7 @@ function CampaignsPanel() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? 'Erreur envoi');
-      setFeedback(`✅ Campagne envoyée avec succès !`);
+      setFeedback(` Campagne envoyée avec succès !`);
       load();
     } catch (e: any) {
       setError(e.message);
@@ -531,7 +531,7 @@ function CampaignsPanel() {
       return;
     }
 
-    setFeedback(`✅ Campagne "${name}" créée (${recipients.length} destinataires)`);
+    setFeedback(` Campagne "${name}" créée (${recipients.length} destinataires)`);
     setName(''); setSubject(''); setBody('');
     setShowForm(false);
     setCreating(false);
@@ -731,7 +731,7 @@ export default function SettingsPage() {
       if (err) {
         setLoadErr(`Erreur: ${err.message}`);
       } else if (!data) {
-        // ✅ Auto-créer le profil s'il est absent
+        //  Auto-créer le profil s'il est absent
         const { data: created } = await supabase.from('profiles').upsert({
           id: user.id, email: user.email!, full_name: null, role: 'commercial',
         }, { onConflict: 'id' }).select().maybeSingle();
@@ -747,7 +747,7 @@ export default function SettingsPage() {
         setProfile(p);
         setFullName(p.full_name ?? '');
 
-        // ✅ FIX : lire isAdmin depuis p.role directement (pas rpc qui peut échouer)
+        //  FIX : lire isAdmin depuis p.role directement (pas rpc qui peut échouer)
         const admin = p.role === 'admin';
         setIsAdmin(admin);
 

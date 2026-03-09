@@ -265,7 +265,7 @@ export default function ContactsPage() {
                       : <span className="text-white/20 text-sm">—</span>}
                   </td>
                   <td className="px-6 py-4">
-                    {/* ✅ Boutons Modifier + Supprimer */}
+                    {/*  Boutons Modifier + Supprimer */}
                     <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => { setEditing(c); setModalMode('edit'); }}

@@ -39,7 +39,7 @@ export default function LoginPage() {
   }
 
   return (
-    // ✅ FIX CENTRAGE : min-h-screen + flex + items-center + justify-center
+    //  FIX CENTRAGE : min-h-screen + flex + items-center + justify-center
     // Pas de padding top, pas de margin top → parfaitement centré verticalement
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
@@ -108,7 +108,7 @@ export default function LoginPage() {
               </p>
             )}
 
-            {/* ✅ disabled={loading} = impossible de cliquer 2x */}
+            {/*  disabled={loading} = impossible de cliquer 2x */}
             <button
               type="submit"
               disabled={loading}
