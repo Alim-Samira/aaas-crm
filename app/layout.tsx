@@ -1,5 +1,5 @@
 // app/layout.tsx
-// ✅ FIX DEFINITIF : export dynamic = 'force-dynamic'
+//    FIX DEFINITIF : export dynamic = 'force-dynamic'
 // Sans ça, Next.js tente de prerendre toutes les pages au BUILD TIME
 // → Supabase crash car NEXT_PUBLIC_SUPABASE_URL n'existe pas au build
 // → "Your project's URL and API key are required" sur toutes les pages
@@ -10,7 +10,7 @@ import { Playfair_Display, DM_Sans } from 'next/font/google';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
 
-// ✅ LA LIGNE QUI RÈGLE TOUT — ne jamais retirer
+//    LA LIGNE QUI RÈGLE TOUT — ne jamais retirer
 export const dynamic = 'force-dynamic';
 
 const displayFont = Playfair_Display({

@@ -1,5 +1,5 @@
 // lib/supabase.ts
-// ✅ FIX DEFENSIF : ne crash pas si variables d'env absentes
+//    FIX DEFENSIF : ne crash pas si variables d'env absentes
 import { createBrowserClient } from '@supabase/ssr';
 
 let client: ReturnType<typeof createBrowserClient> | null = null;

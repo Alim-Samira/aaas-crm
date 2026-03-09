@@ -1,5 +1,5 @@
 // app/api/brevo/route.ts
-// ✅ FIX : await createServerSupabaseClient() — sans await = crash TypeScript
+//    FIX : await createServerSupabaseClient() — sans await = crash TypeScript
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
 
@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
-    // ✅ await obligatoire — la fonction est async
+    //    await obligatoire — la fonction est async
     const supabase = await createServerSupabaseClient();
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
