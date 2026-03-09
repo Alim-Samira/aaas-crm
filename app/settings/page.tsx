@@ -1,5 +1,5 @@
 // app/settings/page.tsx
-// FIX 1 : Users non visibles → signUp() ne fonctionnait pas en prod,
+//  FIX 1 : Users non visibles → signUp() ne fonctionnait pas en prod,
 //            remplacé par createUser via API route /api/admin/create-user
 //            + fallback : chargement des users via service_role côté serveur
 // FIX 2 : Nouvel onglet "Campagnes Email" (Brevo) pour admin
@@ -258,34 +258,41 @@ function UserManagementPanel() {
     if (invPwd.length < 6)    return setError('Minimum 6 caractères.');
     setSaving(true); setError(''); setFeedback('');
 
-    // ✅ Créer le compte auth
-    const { data, error: err } = await supabase.auth.signUp({
-      email: invEmail,
-      password: invPwd,
-      options: { data: { full_name: invName, role: invRole } },
-    });
+    try {
+      // ✅ FIX USERS NON VISIBLES :
+      // On passe par l'API route /api/admin/create-user qui utilise
+      // le service_role pour créer l'utilisateur ET le profil immédiatement.
+      // signUp() côté client ne fonctionnait pas en prod (confirmation email requise).
+      const res = await fetch('/api/admin/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email:     invEmail,
+          password:  invPwd,
+          full_name: invName || null,
+          role:      invRole,
+        }),
+      });
 
-    if (err) { setError(err.message); setSaving(false); return; }
+      const json = await res.json();
 
-    // ✅ FIX USERS NON VISIBLES :
-    // Le trigger handle_new_user() crée le profil automatiquement.
-    // Si le trigger est absent ou échoue, on insère manuellement.
-    if (data.user) {
-      // Forcer l'insertion du profil si absent (double sécurité)
-      await supabase.from('profiles').upsert({
-        id:        data.user.id,
-        email:     invEmail,
-        full_name: invName || null,
-        role:      invRole === 'admin' ? 'commercial' : invRole,
-      }, { onConflict: 'id' });
+      if (!res.ok) {
+        setError(json.error ?? 'Erreur création utilisateur');
+        setSaving(false);
+        return;
+      }
 
       setFeedback(`✅ Compte créé : ${invEmail}`);
       setInvEmail(''); setInvName(''); setInvPwd('');
       setShowForm(false);
-      // Attendre un court délai puis recharger
-      setTimeout(() => { load(); setFeedback(''); }, 1500);
+      // Recharger immédiatement (le profil est déjà en base)
+      await load();
+      setTimeout(() => setFeedback(''), 3000);
+    } catch (err: any) {
+      setError(err.message ?? 'Erreur réseau');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function changeRole(userId: string, role: AppRole) {
