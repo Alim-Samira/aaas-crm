@@ -1,7 +1,7 @@
 // app/pipeline/page.tsx
-//    FIX multi-click: disabled + loading state sur login
-//    NOUVEAU: bouton Modifier sur chaque lead (crayon)
-//    FIX commercial: assigned_to = user.id à la création
+// FIX multi-click: disabled + loading state sur login
+// NOUVEAU: bouton Modifier sur chaque lead (crayon)
+// FIX commercial: assigned_to = user.id à la création
 'use client';
 export const dynamic = 'force-dynamic';
 
@@ -53,7 +53,7 @@ function LeadCard({ lead, index, onEdit, onDelete }: {
               {lead.title}
             </p>
             <div className="flex items-center gap-1 flex-shrink-0">
-              {/*    Bouton Modifier */}
+              {/* ✅ Bouton Modifier */}
               <button
                 onClick={e => { e.stopPropagation(); onEdit(lead); }}
                 className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-white/10 hover:bg-indigo-500/30
@@ -63,7 +63,7 @@ function LeadCard({ lead, index, onEdit, onDelete }: {
               >
                 <Pencil className="w-3 h-3" />
               </button>
-              {/*    Bouton Supprimer */}
+              {/* ✅ Bouton Supprimer */}
               <button
                 onClick={e => { e.stopPropagation(); onDelete(lead.id); }}
                 className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-white/10 hover:bg-rose-500/30
@@ -174,7 +174,7 @@ function LeadModal({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/20 p-8 rounded-3xl shadow-2xl">
+      <div className="relative w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/20 p-6 rounded-3xl shadow-2xl max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-xl font-bold text-white">
             {mode === 'create' ? 'Nouveau lead' : 'Modifier le lead'}
@@ -183,7 +183,7 @@ function LeadModal({
             <X className="w-5 h-5" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto flex-1 pr-1">
           <div>
             <label className="block text-xs font-bold uppercase tracking-widest text-white/30 mb-2">Titre *</label>
             <input
@@ -252,21 +252,22 @@ function LeadModal({
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>{error}</span>
             </div>
           )}
-          <div className="flex gap-3">
-            <button type="button" onClick={onClose}
-              className="flex-1 py-3 rounded-2xl bg-white/5 border border-white/10 text-white/60 font-bold hover:bg-white/10 transition-all">
-              Annuler
-            </button>
-            <button type="submit" disabled={saving}
-              className="flex-1 bg-white text-black font-bold py-3 rounded-2xl hover:bg-white/90 flex items-center justify-center gap-2 transition-all disabled:opacity-60">
-              {saving
-                ? <><span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />{mode === 'create' ? 'Création…' : 'Sauvegarde…'}</>
-                : mode === 'create'
-                  ? <><Plus className="w-5 h-5" />Créer</>
-                  : <><Check className="w-4 h-4" />Enregistrer</>}
-            </button>
-          </div>
         </form>
+        {/* Buttons always visible at bottom */}
+        <div className="flex gap-3 pt-4 border-t border-white/10 flex-shrink-0">
+          <button type="button" onClick={onClose}
+            className="flex-1 py-3 rounded-2xl bg-white/5 border border-white/10 text-white/60 font-bold hover:bg-white/10 transition-all">
+            Annuler
+          </button>
+          <button onClick={handleSubmit as any} disabled={saving}
+            className="flex-1 bg-white text-black font-bold py-3 rounded-2xl hover:bg-white/90 flex items-center justify-center gap-2 transition-all disabled:opacity-60">
+            {saving
+              ? <><span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />{mode === 'create' ? 'Création…' : 'Sauvegarde…'}</>
+              : mode === 'create'
+                ? <><Plus className="w-5 h-5" />Créer</>
+                : <><Check className="w-4 h-4" />Enregistrer</>}
+          </button>
+        </div>
       </div>
     </div>
   );
