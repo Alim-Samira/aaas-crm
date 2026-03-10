@@ -1,8 +1,8 @@
 'use client';
 // components/Sidebar.tsx
-// MOBILE FRIENDLY — hamburger + bottom nav bar on mobile
-// Notification bell + drawer (bottom sheet on mobile, side panel on desktop)
-// Responsive: sidebar on desktop (≥768px), top bar + bottom nav on mobile
+//  MOBILE FRIENDLY — hamburger + bottom nav bar on mobile
+//  Notification bell + drawer (bottom sheet on mobile, side panel on desktop)
+//  Responsive: sidebar on desktop (≥768px), top bar + bottom nav on mobile
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -56,6 +56,7 @@ function NotificationDrawer({ open, onClose, notifications, setNotifications, lo
   const [taskLoading, setTaskLoading] = useState<Record<string,boolean>>({});
   const [expanded,    setExpanded]    = useState<string|null>(null);
   const [statusSaving,setStatusSaving]= useState<string|null>(null);
+  const [helpSent,    setHelpSent]    = useState<string|null>(null);
   const [search,      setSearch]      = useState('');
 
   async function loadTask(id:string){ if(tasks[id]) return; setTaskLoading(p=>({...p,[id]:true})); const {data}=await supabase.from('tasks').select('*').eq('id',id).maybeSingle(); if(data) setTasks(p=>({...p,[id]:data as TaskDetails})); setTaskLoading(p=>({...p,[id]:false})); }
@@ -64,6 +65,25 @@ function NotificationDrawer({ open, onClose, notifications, setNotifications, lo
   async function markAllRead(){ const ids=notifications.filter(n=>!n.read).map(n=>n.id); if(!ids.length) return; await supabase.from('notifications').update({read:true}).in('id',ids); setNotifications(p=>p.map(n=>({...n,read:true}))); }
   async function del(id:string){ await supabase.from('notifications').delete().eq('id',id); setNotifications(p=>p.filter(n=>n.id!==id)); }
   async function updateStatus(taskId:string, status:TaskDetails['status']){ setStatusSaving(taskId); await supabase.from('tasks').update({status}).eq('id',taskId); setTasks(p=>({...p,[taskId]:{...p[taskId],status}})); setStatusSaving(null); }
+  async function requestHelp(td:TaskDetails){
+    // Insert a notification to the admin (assigned_by) asking for help
+    setHelpSent(td.id);
+    try {
+      // Find the admin to notify — get assigned_by from task
+      const {data:task} = await supabase.from('tasks').select('assigned_by,title').eq('id',td.id).maybeSingle();
+      const targetId = (task as any)?.assigned_by;
+      if(!targetId) { setTimeout(()=>setHelpSent(null),3000); return; }
+      await supabase.from('notifications').insert({
+        user_id: targetId,
+        type: 'help_requested',
+        title: '🆘 Aide demandée sur une tâche',
+        body: 'Demande d'aide pour : ' + td.title,
+        entity_id: td.id,
+        entity_type: 'task',
+      });
+      setTimeout(()=>setHelpSent(null), 3000);
+    } catch(e){ setHelpSent(null); }
+  }
 
   const filtered=notifications.filter(n=>!search||n.title.toLowerCase().includes(search.toLowerCase())||n.body?.toLowerCase().includes(search.toLowerCase()));
   const unread=notifications.filter(n=>!n.read).length;
@@ -131,16 +151,26 @@ function NotificationDrawer({ open, onClose, notifications, setNotifications, lo
                             style={{background:cur?sc.bg:'rgba(255,255,255,0.03)',border:`1px solid ${cur?sc.border:'rgba(255,255,255,0.08)'}`,borderRadius:8,padding:'5px 10px',color:cur?sc.color:'rgba(255,255,255,0.35)',fontSize:10,fontWeight:700,cursor:cur?'default':'pointer'}}>{sc.label}</button>;
                         })}
                       </div>
-                      <div style={{display:'flex',alignItems:'center',gap:6}}>
-                        <CheckCircle2 style={{width:12,height:12,color:STATUS_CFG[td.status]?.color}}/>
-                        <span style={{fontSize:11,color:STATUS_CFG[td.status]?.color,fontWeight:700}}>Statut : {STATUS_CFG[td.status]?.label}</span>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:6}}>
+                          <CheckCircle2 style={{width:12,height:12,color:STATUS_CFG[td.status]?.color}}/>
+                          <span style={{fontSize:11,color:STATUS_CFG[td.status]?.color,fontWeight:700}}>Statut : {STATUS_CFG[td.status]?.label}</span>
+                        </div>
+                        <button onClick={()=>requestHelp(td)}
+                          style={{display:'flex',alignItems:'center',gap:4,background:helpSent===td.id?'rgba(52,211,153,0.1)':'rgba(251,191,36,0.08)',border:`1px solid ${helpSent===td.id?'rgba(52,211,153,0.25)':'rgba(251,191,36,0.2)'}`,borderRadius:8,padding:'4px 10px',color:helpSent===td.id?'#34d399':'#fbbf24',fontSize:10,fontWeight:700,cursor:'pointer',transition:'all 0.2s'}}>
+                          {helpSent===td.id?'✅ Demande envoyée':'🆘 Demander de l'aide'}
+                        </button>
                       </div>
                     </div>):<p style={{color:'rgba(255,255,255,0.2)',fontSize:11,margin:0}}>Tâche introuvable.</p>}
                   </div>
                 )}
                 {isExp&&n.entity_type==='lead'&&(
                   <div style={{background:'rgba(52,211,153,0.04)',border:'1px solid rgba(52,211,153,0.12)',borderTop:'none',borderRadius:'0 0 12px 12px',padding:14}}>
-                    <p style={{color:'rgba(255,255,255,0.4)',fontSize:11,margin:0}}>Lead assigné — <Link href="/pipeline" style={{color:'#34d399'}}>Voir le Pipeline</Link></p>
+                    <p style={{color:'rgba(255,255,255,0.5)',fontSize:12,fontWeight:600,margin:'0 0 8px'}}>{n.body}</p>
+                    <Link href="/pipeline" onClick={onClose}
+                      style={{display:'inline-flex',alignItems:'center',gap:6,background:'rgba(52,211,153,0.1)',border:'1px solid rgba(52,211,153,0.2)',borderRadius:8,padding:'6px 12px',color:'#34d399',fontSize:11,fontWeight:700,textDecoration:'none'}}>
+                      🎯 Voir dans le Pipeline →
+                    </Link>
                   </div>
                 )}
               </div>
@@ -183,7 +213,7 @@ export default function Sidebar() {
       if(!user){setReady(true);return;}
       setUserEmail(user.email??''); setUserId(user.id);
       const {data:profile}=await supabase.from('profiles').select('role').eq('id',user.id).maybeSingle();
-      const r=profile?.role??'commercial'; setRole(r);
+      const r=profile?.role??null; setRole(r);
       if(r==='admin'){ setAllowed(new Set(ALL_NAV.map(n=>n.module))); }
       else { const {data:perms}=await supabase.from('module_permissions').select('module,can_access').eq('role',r); if(perms&&perms.length>0) setAllowed(new Set<string>(perms.filter(p=>p.can_access).map(p=>p.module as string))); else setAllowed(new Set(['dashboard','pipeline','contacts','companies','tasks'])); }
       await loadNotifs(user.id); setReady(true);
@@ -202,7 +232,13 @@ export default function Sidebar() {
   },[userId]);
 
   async function loadNotifs(uid:string){ setNotifLoading(true); const {data}=await supabase.from('notifications').select('*').eq('user_id',uid).order('created_at',{ascending:false}).limit(50); if(data) setNotifications(data as Notification[]); setNotifLoading(false); }
-  async function handleSignOut(){ await supabase.auth.signOut(); window.location.href='/auth/login'; }
+  async function handleSignOut(){
+    try {
+      await supabase.auth.signOut();
+    } catch(e) { /* ignore */ }
+    // Force hard redirect to login — clears all state
+    window.location.replace('/auth/login');
+  }
 
   if(pathname?.startsWith('/auth')) return null;
 
