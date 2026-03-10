@@ -1,5 +1,5 @@
 // app/layout.tsx
-//    FIX DEFINITIF : export dynamic = 'force-dynamic'
+//  FIX DEFINITIF : export dynamic = 'force-dynamic'
 // Sans ça, Next.js tente de prerendre toutes les pages au BUILD TIME
 // → Supabase crash car NEXT_PUBLIC_SUPABASE_URL n'existe pas au build
 // → "Your project's URL and API key are required" sur toutes les pages
@@ -10,7 +10,7 @@ import { Playfair_Display, DM_Sans } from 'next/font/google';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
 
-//    LA LIGNE QUI RÈGLE TOUT — ne jamais retirer
+//  LA LIGNE QUI RÈGLE TOUT — ne jamais retirer
 export const dynamic = 'force-dynamic';
 
 const displayFont = Playfair_Display({
@@ -61,7 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
         <div className="flex min-h-screen">
           <Sidebar />
-          <main className="flex-1 ml-64 min-h-screen">
+          <main className="flex-1 md:ml-64 min-h-screen pt-14 pb-16 md:pt-0 md:pb-0">
             {children}
           </main>
         </div>
