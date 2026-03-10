@@ -21,7 +21,6 @@ const ALL_NAV = [
   { href: '/contacts',   label: 'Contacts',    icon: Users,           module: 'contacts'   },
   { href: '/companies',  label: 'Entreprises', icon: Building2,       module: 'companies'  },
   { href: '/tasks',      label: 'Tâches',      icon: CheckSquare,     module: 'tasks'      },
-  { href: '/campaigns', icon: Mail, label: 'Campagnes' },
   { href: '/settings',   label: 'Paramètres',  icon: Settings,        module: 'settings'   },
 ] as const;
 
