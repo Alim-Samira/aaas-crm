@@ -1,8 +1,8 @@
 // app/api/brevo/campaign/route.ts
-//     FIX: Recipients now filtered from profiles table by role (not contacts)
+//FIX: Recipients now filtered from profiles table by role (not contacts)
 //         → "partner" sends only to profiles with role='partner'
-//     Click/open tracking: unique tracking URL injected per email
-//     Webhook endpoint: GET /api/brevo/campaign?webhook=1 for Brevo events
+// Click/open tracking: unique tracking URL injected per email
+// Webhook endpoint: GET /api/brevo/campaign?webhook=1 for Brevo events
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
 
@@ -53,9 +53,9 @@ export async function GET(req: NextRequest) {
     body: JSON.stringify({
       sender: { name: SENDER_NAME, email: SENDER_EMAIL },
       to: [{ email: user.email }],
-      subject: '    Test Brevo AAAS CRM',
+      subject: ' Test Brevo AAAS CRM',
       htmlContent: `<div style="font-family:sans-serif;padding:32px;background:#0f1629;color:#e2e8f0;border-radius:16px;">
-        <h2 style="color:#a5b4fc;">    Brevo fonctionne !</h2>
+        <h2 style="color:#a5b4fc;"> Brevo fonctionne !</h2>
         <p style="color:#94a3b8;">Expéditeur : ${SENDER_EMAIL}</p>
       </div>`,
     }),
@@ -96,29 +96,37 @@ export async function POST(req: NextRequest) {
     if (missing.length > 0)
       return NextResponse.json({ error: `Variables Vercel manquantes : ${missing.join(', ')}` }, { status: 500 });
 
-    // ── FIXED: Get recipients from PROFILES table filtered by role ──
-    // Previously it was querying the contacts table and then trying to
-    // match by email — this caused ALL contacts to receive the email.
-    // Now we query profiles directly by role.
+    // ── Get recipients from PROFILES using service_role to bypass RLS ──
+    // IMPORTANT: use adminClient (service_role) here to bypass RLS
+    // The regular supabase client may return empty if RLS blocks profile reads
+    const SERVICE_KEY_CHECK = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const profileClient = SERVICE_KEY_CHECK
+      ? (await import('@supabase/supabase-js')).createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          SERVICE_KEY_CHECK,
+          { auth: { autoRefreshToken: false, persistSession: false } }
+        )
+      : supabase; // fallback to regular client
+
     let recipientProfiles: { email: string; full_name: string | null }[] = [];
 
     if (!campaign.target_role || campaign.target_role === 'all') {
-      // Send to ALL profiles that have an email
-      const { data: allProfiles } = await supabase
+      const { data: allProfiles } = await profileClient
         .from('profiles')
         .select('email, full_name')
         .not('email', 'is', null)
         .neq('email', '');
       recipientProfiles = (allProfiles ?? []) as any[];
+      console.log(`[brevo] target=all → ${recipientProfiles.length} profiles`);
     } else {
-      // Send ONLY to profiles with the specific role
-      const { data: roleProfiles } = await supabase
+      const { data: roleProfiles } = await profileClient
         .from('profiles')
         .select('email, full_name')
         .eq('role', campaign.target_role)
         .not('email', 'is', null)
         .neq('email', '');
       recipientProfiles = (roleProfiles ?? []) as any[];
+      console.log(`[brevo] target=${campaign.target_role} → ${recipientProfiles.length} profiles`);
     }
 
     // Fallback: if no profiles found, send to admin
@@ -196,7 +204,7 @@ export async function POST(req: NextRequest) {
         const json = await res.json();
         if (res.ok) {
           sent++;
-          console.log(`[brevo]     ${recipient.email} — ${json.messageId}`);
+          console.log(`[brevo]  ${recipient.email} — ${json.messageId}`);
         } else {
           errors.push(`${recipient.email}: ${json.message ?? res.status}`);
         }
