@@ -818,11 +818,14 @@ function EditorModal({
   async function handleSave() {
     if (!name.trim() || !subject.trim() || !body.trim()) { setErr('Tous les champs sont requis.'); return; }
     setSaving(true); setErr('');
-    let recipCount = contacts.length;
-    if (target !== 'all') {
-      const { data: pr } = await supabase.from('profiles').select('email').eq('role', target).not('email', 'is', null);
-      const s = new Set((pr ?? []).map((p: any) => p.email?.toLowerCase()));
-      recipCount = contacts.filter(c => c.email && s.has(c.email.toLowerCase())).length || contacts.length;
+    // Count actual profiles with this role (not contacts)
+    let recipCount = 0;
+    if (target === 'all') {
+      const { count } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).not('email','is',null);
+      recipCount = count ?? 0;
+    } else {
+      const { count } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', target).not('email','is',null);
+      recipCount = count ?? 0;
     }
 
     if (mode === 'create') {
