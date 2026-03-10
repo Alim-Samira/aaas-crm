@@ -1,9 +1,4 @@
 // app/layout.tsx
-//  FIX DEFINITIF : export dynamic = 'force-dynamic'
-// Sans ça, Next.js tente de prerendre toutes les pages au BUILD TIME
-// → Supabase crash car NEXT_PUBLIC_SUPABASE_URL n'existe pas au build
-// → "Your project's URL and API key are required" sur toutes les pages
-// force-dynamic = pages rendues à la demande uniquement (jamais au build)
 
 import type { Metadata } from 'next';
 import { Playfair_Display, DM_Sans } from 'next/font/google';
