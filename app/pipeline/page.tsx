@@ -1,7 +1,7 @@
 // app/pipeline/page.tsx
-//     FIX multi-click: disabled + loading state sur login
-//     NOUVEAU: bouton Modifier sur chaque lead (crayon)
-//     FIX commercial: assigned_to = user.id à la création
+//    FIX multi-click: disabled + loading state sur login
+//    NOUVEAU: bouton Modifier sur chaque lead (crayon)
+//    FIX commercial: assigned_to = user.id à la création
 'use client';
 export const dynamic = 'force-dynamic';
 
@@ -53,7 +53,7 @@ function LeadCard({ lead, index, onEdit, onDelete }: {
               {lead.title}
             </p>
             <div className="flex items-center gap-1 flex-shrink-0">
-              {/*     Bouton Modifier */}
+              {/*    Bouton Modifier */}
               <button
                 onClick={e => { e.stopPropagation(); onEdit(lead); }}
                 className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-white/10 hover:bg-indigo-500/30
@@ -63,7 +63,7 @@ function LeadCard({ lead, index, onEdit, onDelete }: {
               >
                 <Pencil className="w-3 h-3" />
               </button>
-              {/*     Bouton Supprimer */}
+              {/*    Bouton Supprimer */}
               <button
                 onClick={e => { e.stopPropagation(); onDelete(lead.id); }}
                 className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-white/10 hover:bg-rose-500/30
@@ -310,14 +310,16 @@ export default function PipelinePage() {
       if (ctcts) setContacts(ctcts as Contact[]);
 
       // Load users for assignment
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-      const admin = profile?.role === 'admin'; setIsAdmin(admin);
-      if (admin) {
-        const { data: us } = await supabase.from('profiles').select('id,full_name,email,role').order('full_name',{ascending:true});
-        setUsers((us??[]) as UserProfile[]);
-      } else {
-        const { data: me } = await supabase.from('profiles').select('id,full_name,email,role').eq('id',user.id).maybeSingle();
-        if (me) setUsers([me as UserProfile]);
+      if (user) {
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+        const admin = profile?.role === 'admin'; setIsAdmin(admin);
+        if (admin) {
+          const { data: us } = await supabase.from('profiles').select('id,full_name,email,role').order('full_name',{ascending:true});
+          setUsers((us??[]) as UserProfile[]);
+        } else {
+          const { data: me } = await supabase.from('profiles').select('id,full_name,email,role').eq('id',user.id).maybeSingle();
+          if (me) setUsers([me as UserProfile]);
+        }
       }
 
       setLoading(false);

@@ -1,133 +1,149 @@
-# AAAS CRM — Documentation Complète
+# AAAS CRM — Documentation Technique
 
-> **Projet académique** · Communication Digitale · Stack: Next.js 14 + Supabase + Brevo + Vercel
+<div align="center">
+
+![Next.js](https://img.shields.io/badge/Next.js-14-black?style=for-the-badge&logo=next.js)
+![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript)
+![Tailwind](https://img.shields.io/badge/Tailwind-CSS-06B6D4?style=for-the-badge&logo=tailwindcss)
+![Vercel](https://img.shields.io/badge/Vercel-CI%2FCD-000?style=for-the-badge&logo=vercel)
+
+**Application CRM SaaS Full Stack · Projet Communication Digitale**  
+Live → [aaas-crm.vercel.app](https://aaas-crm.vercel.app) · Code → [github.com/Alim-Samira/aaas-crm](https://github.com/Alim-Samira/aaas-crm)
+
+</div>
 
 ---
 
 ## Table des matières
 
-1. [Présentation du projet](#1-présentation)
+1. [Présentation du projet](#1-présentation-du-projet)
 2. [Stack technique](#2-stack-technique)
-3. [Structure du projet](#3-structure-du-projet)
-4. [Workflow de vente AAAS](#4-workflow-de-vente-aaas)
+3. [Architecture du système](#3-architecture-du-système)
+4. [Structure des fichiers](#4-structure-des-fichiers)
 5. [Diagrammes UML](#5-diagrammes-uml)
-6. [Installation locale](#6-installation-locale)
-7. [Configuration Supabase](#7-configuration-supabase)
-8. [Déploiement Vercel + GitHub CI/CD](#8-déploiement-vercel--github-cicd)
-9. [Gestion des rôles et permissions](#9-gestion-des-rôles-et-permissions)
+   - 5.1 [Diagramme de cas d'utilisation](#51-diagramme-de-cas-dutilisation)
+   - 5.2 [Diagramme de classes (MCD)](#52-diagramme-de-classes-mcd)
+   - 5.3 [Diagramme de séquence — Authentification](#53-diagramme-de-séquence--authentification--rbac)
+   - 5.4 [Diagramme de séquence — Création & assignation de tâche](#54-diagramme-de-séquence--création--assignation-de-tâche)
+   - 5.5 [Diagramme de séquence — Campagne email](#55-diagramme-de-séquence--campagne-email--tracking)
+   - 5.6 [Diagramme d'activité — Pipeline Kanban](#56-diagramme-dactivité--pipeline-kanban)
+   - 5.7 [Diagramme de déploiement](#57-diagramme-de-déploiement)
+6. [Fonctionnalités par module](#6-fonctionnalités-par-module)
+7. [Système RBAC — Rôles & Permissions](#7-système-rbac--rôles--permissions)
+8. [Installation locale](#8-installation-locale)
+9. [Configuration Supabase](#9-configuration-supabase)
 10. [Variables d'environnement](#10-variables-denvironnement)
+11. [Déploiement CI/CD](#11-déploiement-cicd)
+12. [Licence](#12-licence)
 
 ---
 
-## 1. Présentation
+## 1. Présentation du projet
 
-**AAAS CRM** est une application web SaaS de gestion de la relation client développée dans le cadre d'un projet de formation en Communication Digitale.
+**AAAS CRM** est une application web SaaS de Gestion de la Relation Client développée dans le cadre du cours de Communication Digitale. Elle centralise la gestion des leads, contacts, tâches et campagnes email dans une interface glassmorphism.
 
-### Fonctionnalités principales
+### Vue d'ensemble des fonctionnalités
 
-| Module | Description |
-|--------|-------------|
-| 🔐 Authentification | Login / Signup / Rôles (Admin, CEO, Commercial, Partenaire) |
-| 🎯 Pipeline | Kanban drag-and-drop — 6 étapes de vente personnalisées |
-| 👤 Contacts | CRUD complet, historique des interactions |
-| 🏢 Entreprises | Répertoire des entreprises partenaires |
-| DONE Tâches | Gestion des tâches avec priorité et statut |
-| 📊 Dashboard | KPIs, graphiques de conversion, revenus |
-| 📧 Email | Automatisation Brevo (email de bienvenue sur nouveau lead) |
-| ⚙️ Paramètres | Admin : gestion des rôles, permissions par module, demandes d'accès |
+| Module | Description | Nouveautés v2 |
+|--------|-------------|---------------|
+| 🔐 **Authentification** | Login · Signup · JWT · 4 rôles RBAC | Master Admin protégé |
+| 🎯 **Pipeline Kanban** | 6 étapes · Drag-and-drop · Valeur · Assign à un user | ✅ Assignation utilisateur |
+| 👤 **Contacts** | CRUD complet · Recherche · Filtres | — |
+| 🏢 **Entreprises** | Annuaire · Association contacts | — |
+| ✅ **Tâches** | Kanban · Priorité · Échéances · Assign + notifications | ✅ Notifications temps réel |
+| 📊 **Dashboard** | KPIs · Recharts · Taux de conversion · CA | — |
+| 📧 **Campagnes Email** | Brevo · Templates · Ciblage par rôle · Click tracking | ✅ Fix ciblage + tracking |
+| ⚙️ **Paramètres** | Gestion users · Master Admin · Permissions · Sous-admins | ✅ Hiérarchie admin |
+| 🔔 **Notifications** | Bell temps réel · Tâches assignées · Statut modifiable | ✅ Nouveau |
 
 ---
 
 ## 2. Stack technique
 
 ```
-Frontend       Next.js 14 (App Router) + TypeScript
-Styling        Tailwind CSS (glassmorphism — backdrop-blur, bg-white/10)
-Base de données Supabase (PostgreSQL + Auth + RLS)
-Emailing       Brevo API (transactionnel + campagnes)
-Hébergement    Vercel (déploiement automatique)
-CI/CD          GitHub Actions via Vercel GitHub App
+┌─────────────────────────────────────────────────────────────────┐
+│  FRONTEND                                                        │
+│  Next.js 14 (App Router)  ·  TypeScript 5  ·  Tailwind CSS      │
+│  Glassmorphism UI  ·  Recharts  ·  @hello-pangea/dnd            │
+├─────────────────────────────────────────────────────────────────┤
+│  BACKEND / BDD                                                   │
+│  Supabase (PostgreSQL 15)  ·  Row Level Security (RLS)          │
+│  Auth JWT  ·  Realtime subscriptions  ·  Edge Functions         │
+├─────────────────────────────────────────────────────────────────┤
+│  SERVICES EXTERNES                                               │
+│  Brevo (email transactionnel + campagnes)                        │
+├─────────────────────────────────────────────────────────────────┤
+│  DEVOPS                                                          │
+│  Vercel (hosting + CDN)  ·  GitHub (CI/CD auto-deploy)          │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 3. Structure du projet
+## 3. Architecture du système
 
 ```
-aaas-crm/
-├── app/
-│   ├── layout.tsx                 # Shell global : sidebar + fond glassmorphic
-│   ├── page.tsx                   # Redirect → /dashboard
-│   ├── dashboard/
-│   │   └── page.tsx               # KPIs, graphiques Recharts, lead_stats view
-│   ├── pipeline/
-│   │   └── page.tsx               # Kanban 6 étapes AAAS (drag-and-drop)
-│   ├── contacts/
-│   │   └── page.tsx               # CRUD contacts + recherche + filtres
-│   ├── companies/
-│   │   └── page.tsx               # CRUD entreprises + favicon API
-│   ├── tasks/
-│   │   └── page.tsx               # Kanban tâches : todo / in_progress / done
-│   ├── settings/
-│   │   └── page.tsx               # Profil + Admin : users, rôles, permissions
-│   └── auth/
-│       ├── login/page.tsx         # Connexion
-│       └── signup/page.tsx        # Inscription avec sélection de rôle
-│
-├── api/
-│   └── brevo/
-│       └── route.ts               # POST → envoie email Brevo sur nouveau lead
-│
+┌───────────────────────────────────────────────────────────────────────────┐
+│                              NAVIGATEUR                                    │
+│                     React · Next.js App Router · TypeScript                │
+└─────────────────────────────┬─────────────────────────────────────────────┘
+                              │ HTTPS
+                              ▼
+┌───────────────────────────────────────────────────────────────────────────┐
+│                         VERCEL EDGE NETWORK                                │
+│              CDN · SSR · API Routes · Auto-deploy via GitHub               │
+└──────────┬────────────────────────────────────────┬────────────────────────┘
+           │ Supabase JS SDK                         │ API Routes (Next.js)
+           ▼                                         ▼
+┌──────────────────────────┐             ┌──────────────────────────────────┐
+│       SUPABASE           │             │        BREVO API                  │
+│  PostgreSQL 15           │             │  POST /v3/smtp/email              │
+│  Auth (JWT + Refresh)    │             │  Campagnes ciblées par rôle       │
+│  Row Level Security      │             │  Tracking clics/ouvertures        │
+│  Realtime Subscriptions  │             └──────────────────────────────────┘
+│  Storage                 │
+└──────────────────────────┘
+
+Flux de données sécurisé :
+  Client → RLS Policy → PostgreSQL  (lecture/écriture filtrée par user.id + role)
+  Admin API → service_role key      (bypass RLS — création de comptes uniquement)
+```
+
+---
+
+## 4. Structure des fichiers
+
+```
+crm-project/
+├── app/                          # Next.js App Router
+│   ├── auth/
+│   │   ├── login/page.tsx        # Page de connexion
+│   │   └── signup/page.tsx       # Page d'inscription + choix rôle
+│   ├── dashboard/page.tsx        # KPIs, graphiques Recharts
+│   ├── pipeline/page.tsx         # Kanban leads + assignation
+│   ├── contacts/page.tsx         # CRUD contacts
+│   ├── companies/page.tsx        # Répertoire entreprises
+│   ├── tasks/page.tsx            # Kanban tâches + assignation + notifs
+│   ├── settings/page.tsx         # Admin : users, campagnes, permissions
+│   ├── api/
+│   │   ├── admin/create-user/route.ts   # Création compte via service_role
+│   │   ├── brevo/route.ts               # Email transactionnel
+│   │   └── brevo/campaign/route.ts      # Campagnes + webhook tracking
+│   └── layout.tsx                # Layout global + dynamic='force-dynamic'
 ├── components/
-│   ├── LoadingScreen.tsx          # Loader AAAS animé (monogramme + barre)
-│   ├── Sidebar.tsx                # Navigation latérale responsive
-│   └── ui/
-│       └── GlassCard.tsx          # Carte glassmorphique réutilisable
-│
+│   ├── Sidebar.tsx               # Nav + 🔔 cloche notifications temps réel
+│   └── LoadingScreen.tsx         # Loader glassmorphism
 ├── lib/
-│   ├── supabase.ts                # Client Supabase (singleton)
-│   ├── brevo.ts                   # Utilitaire envoi email Brevo
-│   └── utils.ts                   # formatCurrency, cn(), etc.
-│
+│   ├── supabase.ts               # Client Supabase (browser)
+│   ├── supabase-server.ts        # Client Supabase (server / API routes)
+│   └── utils.ts                  # formatCurrency, etc.
 ├── types/
-│   └── index.ts                   # Types TypeScript : Profile, Lead, Contact…
-│
-├── supabase/
-│   ├── schema.sql                 # Schéma initial (tables, RLS, triggers)
-│   ├── patch_v1.4_fixed.sql       # Patch rôles, access_requests, pipeline_stages
-│   └── seed.sql                   # Données de test (optionnel)
-│
-├── public/
-│   └── logo.png
-│
-├── .env.local                     # Variables d'env (NE PAS committer)
-├── .env.example                   # Template des variables
-├── .gitignore
-├── next.config.js
-├── tailwind.config.ts
-├── tsconfig.json
-└── package.json
+│   └── index.ts                  # Profile, Lead, Contact, AppRole…
+└── supabase/
+    ├── schema.sql                # Schéma initial
+    └── patches/                  # SQL patches cumulatifs
 ```
-
----
-
-## 4. Workflow de vente AAAS
-
-Le pipeline est configuré avec **6 étapes** correspondant au cycle de vente de l'entreprise :
-
-```
-┌─────────────┐   ┌──────────────┐   ┌─────────────┐   ┌─────────────┐   ┌──────────┐   ┌──────────┐
-│ Prospection │──▶│ Qualification│──▶│ Proposition │──▶│ Négociation │──▶│  Gagné ✓ │   │ Perdu ✗  │
-│   (new)     │   │ (qualified)  │   │ (proposal)  │   │(negotiation)│   │(converted│   │  (lost)  │
-└─────────────┘   └──────────────┘   └─────────────┘   └─────────────┘   └──────────┘   └──────────┘
-   Cyan/Bleu          Ambre             Violet            Orange           Émeraude          Rouge
-```
-
-### Règles métier
-- Un lead peut être glissé librement entre toutes les étapes
-- Le statut `converted` comptabilise le CA dans les KPIs
-- Le statut `lost` retire le lead du pipeline actif
-- Les étapes sont configurables par un admin dans `pipeline_stages`
 
 ---
 
@@ -136,148 +152,425 @@ Le pipeline est configuré avec **6 étapes** correspondant au cycle de vente de
 ### 5.1 Diagramme de cas d'utilisation
 
 ```
-                        ┌─────────────────────────────────────────┐
-                        │              Système AAAS CRM            │
-                        │                                          │
-  ┌──────────┐          │  ┌─────────────────────────────────┐    │
-  │          │──────────┼─▶│ S'authentifier (login/signup)   │    │
-  │  Visiteur│          │  └─────────────────────────────────┘    │
-  └──────────┘          │                                          │
-                        │  ┌─────────────────────────────────┐    │
-  ┌──────────┐          │  │ Gérer les leads (CRUD + kanban) │    │
-  │Commercial│──────────┼─▶│ Gérer les contacts              │◀───┤
-  └──────────┘          │  │ Gérer les tâches                │    │
-        │               │  │ Consulter le dashboard          │    │
-        │               │  └─────────────────────────────────┘    │
-        │extends        │                                          │
-        ▼               │  ┌─────────────────────────────────┐    │
-  ┌──────────┐          │  │ Gérer les entreprises           │    │
-  │   CEO    │──────────┼─▶│ Voir tous les rapports          │◀───┤
-  └──────────┘          │  │ Accès analytics avancés         │    │
-        │               │  └─────────────────────────────────┘    │
-        │extends        │                                          │
-        ▼               │  ┌─────────────────────────────────┐    │
-  ┌──────────┐          │  │ Gérer les utilisateurs          │    │
-  │  Admin   │──────────┼─▶│ Modifier les rôles              │    │
-  └──────────┘          │  │ Approuver les demandes d'accès  │    │
-                        │  │ Configurer les permissions      │    │
-                        │  │ Gérer le pipeline (étapes)      │    │
-                        │  └─────────────────────────────────┘    │
-                        └─────────────────────────────────────────┘
-```
-
-### 5.2 Diagramme de classes (MCD simplifié)
-
-```
-┌─────────────────┐        ┌──────────────────┐        ┌─────────────────┐
-│    profiles     │        │     contacts     │        │    companies    │
-├─────────────────┤        ├──────────────────┤        ├─────────────────┤
-│ id: UUID (PK)   │        │ id: UUID (PK)    │        │ id: UUID (PK)   │
-│ email: TEXT     │        │ first_name: TEXT │        │ name: TEXT      │
-│ full_name: TEXT │        │ last_name: TEXT  │        │ industry: TEXT  │
-│ role: TEXT      │        │ email: TEXT      │        │ website: TEXT   │
-│ avatar_url: TEXT│        │ phone: TEXT      │        │ created_by: UUID│
-│ created_at: TS  │        │ notes: TEXT      │        │ created_at: TS  │
-└────────┬────────┘        │ company_id: UUID─┼───────▶└─────────────────┘
-         │                 │ created_by: UUID │
-         │ 1               │ created_at: TS   │
-         │                 └────────┬─────────┘
-         │                          │ 1
-         │ N                        │ N
-         ▼                          ▼
-┌─────────────────┐        ┌──────────────────┐        ┌─────────────────┐
-│      leads      │        │  interactions    │        │      tasks      │
-├─────────────────┤        ├──────────────────┤        ├─────────────────┤
-│ id: UUID (PK)   │        │ id: UUID (PK)    │        │ id: UUID (PK)   │
-│ title: TEXT     │        │ lead_id: UUID ───┼───────▶│ title: TEXT     │
-│ value: NUMERIC  │        │ type: TEXT       │        │ description: TXT│
-│ status: TEXT    │        │ description: TXT │        │ status: TEXT    │
-│ stage: TEXT ────┼───────▶│ date: DATE       │        │ priority: TEXT  │
-│ contact_id: UUID│        │ created_at: TS   │        │ due_date: DATE  │
-│ assigned_to:UUID│        └──────────────────┘        │ assigned_to:UUID│
-│ created_at: TS  │                                     │ created_by:UUID │
-└─────────────────┘        ┌──────────────────┐        │ created_at: TS  │
-                           │ pipeline_stages  │        └─────────────────┘
-┌──────────────────┐       ├──────────────────┤
-│ access_requests  │       │ key: TEXT (PK)   │        ┌─────────────────┐
-├──────────────────┤       │ label: TEXT      │        │module_permissions│
-│ id: UUID (PK)    │       │ color: TEXT      │        ├─────────────────┤
-│ user_id: UUID    │       │ sort_order: INT  │        │ module: TEXT    │
-│ email: TEXT      │       │ is_active: BOOL  │        │ role: TEXT      │
-│ requested_role   │       └──────────────────┘        │ can_access: BOOL│
-│ status: TEXT     │                                    └─────────────────┘
-│ justification    │
-│ reviewed_by: UUID│
-└──────────────────┘
-```
-
-### 5.3 Diagramme de séquence — Création d'un lead
-
-```
-  Commercial       Frontend          Supabase           Brevo API
-      │                │                 │                   │
-      │  Fill form      │                 │                   │
-      │────────────────▶│                 │                   │
-      │                 │ INSERT leads    │                   │
-      │                 │────────────────▶│                   │
-      │                 │                 │ Check RLS policy  │
-      │                 │                 │──────────────────▶│(internal)
-      │                 │                 │ Return lead data  │
-      │                 │◀────────────────│                   │
-      │                 │ POST /api/brevo │                   │
-      │                 │────────────────────────────────────▶│
-      │                 │                 │                   │ Send welcome
-      │                 │                 │                   │ email
-      │                 │                 │                   │◀──────────
-      │ Lead in Kanban  │                 │                   │
-      │◀────────────────│                 │                   │
-```
-
-### 5.4 Diagramme de séquence — Approbation d'un rôle
-
-```
-  Nouvel utilisateur    Frontend          Supabase          Admin
-         │                  │                 │               │
-         │  Signup (CEO)     │                 │               │
-         │─────────────────▶│                 │               │
-         │                  │ auth.signUp()   │               │
-         │                  │────────────────▶│               │
-         │                  │ INSERT profiles │               │
-         │                  │  role='commercial'              │
-         │                  │────────────────▶│               │
-         │                  │ INSERT access_requests          │
-         │                  │  requested_role='ceo'           │
-         │                  │────────────────▶│               │
-         │ "Demande envoyée" │                 │               │
-         │◀─────────────────│                 │               │
-         │                  │                 │  Badge ⚠️(1)  │
-         │                  │                 │──────────────▶│
-         │                  │                 │               │ Click Approuver
-         │                  │                 │◀──────────────│
-         │                  │ rpc('update_user_role')        │
-         │                  │────────────────▶│               │
-         │                  │ UPDATE profiles │               │
-         │                  │  role='ceo'     │               │
-         │                  │────────────────▶│               │
-         │  Rôle CEO actif  │                 │               │
-         │◀─────────────────│                 │               │
+╔══════════════════════════════════════════════════════════════════════════╗
+║                           Système AAAS CRM                               ║
+║                                                                          ║
+║   ┌──────────────┐    ┌────────────────────────────────────────────┐    ║
+║   │   Visiteur   │───▶│ S'authentifier (login / signup)            │    ║
+║   └──────────────┘    └────────────────────────────────────────────┘    ║
+║                                                                          ║
+║   ┌──────────────┐    ┌────────────────────────────────────────────┐    ║
+║   │  Utilisateur │───▶│ Voir les notifications assignées           │    ║
+║   │  (tous rôles)│───▶│ Modifier le statut d'une tâche assignée    │    ║
+║   └──────────────┘    └────────────────────────────────────────────┘    ║
+║          │                                                               ║
+║          ├ extends                                                        ║
+║          ▼                                                               ║
+║   ┌──────────────┐    ┌────────────────────────────────────────────┐    ║
+║   │  Commercial  │───▶│ Gérer les leads (Kanban + assignation)     │    ║
+║   │  / Standard  │───▶│ Gérer les contacts & entreprises           │    ║
+║   │  / Partenaire│───▶│ Gérer ses propres tâches                   │    ║
+║   └──────────────┘    │ Consulter le dashboard                     │    ║
+║          │            └────────────────────────────────────────────┘    ║
+║          ├ extends                                                        ║
+║          ▼                                                               ║
+║   ┌──────────────┐    ┌────────────────────────────────────────────┐    ║
+║   │  Sous-Admin  │───▶│ Voir tous les utilisateurs (sauf master)   │    ║
+║   │  (admin role)│───▶│ Modifier rôles : commercial/standard/part. │    ║
+║   │              │───▶│ Envoyer des campagnes email ciblées        │    ║
+║   │              │···▶│ Approuver demandes admin (si autorisé)     │    ║
+║   └──────────────┘    └────────────────────────────────────────────┘    ║
+║          │            ··· = conditionnel (permission "can_approve_admin")║
+║          ├ extends                                                        ║
+║          ▼                                                               ║
+║   ┌──────────────┐    ┌────────────────────────────────────────────┐    ║
+║   │ Master Admin │───▶│ Voir TOUS les utilisateurs (incl. admins)  │    ║
+║   │(alim.samira) │───▶│ Modifier TOUS les rôles (sauf son propre)  │    ║
+║   │              │───▶│ Accorder permission "Approuver admins"      │    ║
+║   │              │───▶│ Configurer les permissions par module       │    ║
+║   │              │───▶│ Approuver toutes les demandes d'accès      │    ║
+║   │  (protégé)   │    └────────────────────────────────────────────┘    ║
+║   └──────────────┘                                                       ║
+╚══════════════════════════════════════════════════════════════════════════╝
 ```
 
 ---
 
-## 6. Installation locale
+### 5.2 Diagramme de classes (MCD)
+
+```
+┌─────────────────────┐          ┌──────────────────────┐
+│       profiles      │          │       contacts        │
+├─────────────────────┤          ├──────────────────────┤
+│ + id: UUID (PK)     │◀────┐    │ + id: UUID (PK)       │
+│ + email: TEXT       │     │    │ + first_name: TEXT    │
+│ + full_name: TEXT   │     │    │ + last_name: TEXT     │
+│ + role: AppRole     │     │    │ + email: TEXT         │
+│ + avatar_url: TEXT  │     │    │ + phone: TEXT         │
+│ + created_at: TS    │     │    │ + company_id: UUID ──────────┐
+└──────────┬──────────┘     │    │ + created_by: UUID    │      │
+           │                │    │ + created_at: TS      │      │
+           │ 1..N           │    └──────────┬────────────┘      │
+           ▼                │              1│                    │
+┌─────────────────────┐     │              │N                   │
+│        leads        │     │              ▼                    ▼
+├─────────────────────┤     │    ┌──────────────────────┐  ┌────────────────┐
+│ + id: UUID (PK)     │     │    │     interactions      │  │   companies    │
+│ + title: TEXT       │     │    ├──────────────────────┤  ├────────────────┤
+│ + value: NUMERIC    │     │    │ + id: UUID (PK)       │  │ + id: UUID(PK) │
+│ + status: LeadStatus│     │    │ + lead_id: UUID ◀─────┤  │ + name: TEXT   │
+│ + contact_id: UUID ─┼─────┼───▶│ + type: TEXT          │  │ + industry:TEXT│
+│ + assigned_to: UUID─┼─────┘    │ + description: TEXT   │  │ + website:TEXT │
+│ + assigned_by: UUID │          │ + date: DATE          │  │ + created_at:TS│
+│ + assigned_at: TS   │          │ + created_at: TS      │  └────────────────┘
+│ + notes: TEXT       │          └──────────────────────┘
+│ + created_by: UUID  │
+│ + created_at: TS    │          ┌──────────────────────┐
+└─────────────────────┘          │    notifications      │
+                                 ├──────────────────────┤
+┌─────────────────────┐          │ + id: UUID (PK)       │
+│        tasks        │          │ + user_id: UUID ◀─────┤── (profiles.id)
+├─────────────────────┤          │ + type: TEXT          │
+│ + id: UUID (PK)     │          │ + title: TEXT         │
+│ + title: TEXT       │          │ + body: TEXT          │
+│ + description: TEXT │          │ + entity_id: UUID     │
+│ + status: TaskStatus│          │ + entity_type: TEXT   │
+│ + priority: Priority│          │ + read: BOOLEAN       │
+│ + due_date: DATE    │          │ + created_at: TS      │
+│ + assigned_to: UUID─┼──────────┴──────────────────────┘
+│ + assigned_by: UUID │
+│ + assigned_at: TS   │          ┌──────────────────────┐
+│ + created_by: UUID  │          │   email_campaigns     │
+│ + created_at: TS    │          ├──────────────────────┤
+└─────────────────────┘          │ + id: UUID (PK)       │
+                                 │ + name: TEXT          │
+┌─────────────────────┐          │ + subject: TEXT       │
+│  module_permissions │          │ + body: TEXT          │
+├─────────────────────┤          │ + status: TEXT        │
+│ + id: UUID (PK)     │          │ + target_role: TEXT   │
+│ + module: TEXT      │          │ + recipients: INT     │
+│ + role: AppRole     │          │ + click_count: INT    │
+│ + can_access: BOOL  │          │ + open_count: INT     │
+│ UNIQUE(module,role) │          │ + sent_at: TS         │
+└─────────────────────┘          │ + created_by: UUID   │
+                                 │ + created_at: TS      │
+┌─────────────────────┐          └──────────────────────┘
+│  admin_permissions  │
+├─────────────────────┤          ┌──────────────────────┐
+│ + id: UUID (PK)     │          │   access_requests     │
+│ + user_id: UUID     │          ├──────────────────────┤
+│ + can_approve_admin │          │ + id: UUID (PK)       │
+│ + granted_by: UUID  │          │ + user_id: UUID       │
+│ UNIQUE(user_id)     │          │ + email: TEXT         │
+└─────────────────────┘          │ + requested_role:TEXT │
+                                 │ + status: TEXT        │
+                                 │ + reviewed_by: UUID   │
+                                 │ + created_at: TS      │
+                                 └──────────────────────┘
+
+AppRole  = 'admin' | 'user_standard' | 'commercial' | 'partner'
+TaskStatus = 'pending' | 'in_progress' | 'done' | 'overdue'
+LeadStatus = 'new' | 'in_progress' | 'converted' | 'lost'
+Priority = 'low' | 'medium' | 'high'
+```
+
+---
+
+### 5.3 Diagramme de séquence — Authentification & RBAC
+
+```
+  Utilisateur      Next.js / Auth Page        Supabase Auth         DB profiles
+      │                    │                       │                     │
+      │  POST signup       │                       │                     │
+      │  (email, pwd, role)│                       │                     │
+      │───────────────────▶│                       │                     │
+      │                    │ supabase.auth.signUp()│                     │
+      │                    │──────────────────────▶│                     │
+      │                    │                       │ INSERT auth.users   │
+      │                    │                       │────────────────────▶│
+      │                    │                       │ TRIGGER: handle_new_user()
+      │                    │                       │ → INSERT profiles   │
+      │                    │                       │   role = 'commercial'│ (toujours)
+      │                    │                       │ → IF role ∈ {admin} │
+      │                    │                       │   INSERT access_requests
+      │                    │                       │────────────────────▶│
+      │                    │     JWT token         │                     │
+      │                    │◀──────────────────────│                     │
+      │  Redirect dashboard│                       │                     │
+      │◀───────────────────│                       │                     │
+      │                    │                       │                     │
+      │  [Admin side]      │                       │                     │
+      │                    │ SELECT access_requests│                     │
+      │                    │  WHERE status='pending'│                    │
+      │                    │──────────────────────────────────────────▶│
+      │                    │◀──────────────────────────────────────────│
+      │  ⚠️ Badge count    │                       │                     │
+      │◀───────────────────│                       │                     │
+      │  [Admin approves]  │                       │                     │
+      │  Click "Approuver" │                       │                     │
+      │───────────────────▶│ rpc('update_user_role')                    │
+      │                    │──────────────────────────────────────────▶│
+      │                    │  SECURITY DEFINER function                  │
+      │                    │  → guards master admin email                │
+      │                    │  → UPDATE profiles SET role = new_role     │
+      │                    │◀──────────────────────────────────────────│
+      │  Role updated ✅   │                       │                     │
+      │◀───────────────────│                       │                     │
+```
+
+---
+
+### 5.4 Diagramme de séquence — Création & assignation de tâche
+
+```
+  Admin/User       app/tasks/page.tsx          Supabase DB          Assigné
+      │                    │                       │                    │
+      │  Ouvre modal       │                       │                    │
+      │  "Nouvelle tâche"  │                       │                    │
+      │───────────────────▶│                       │                    │
+      │                    │ SELECT profiles       │                    │
+      │                    │ (pour liste assignees)│                    │
+      │                    │──────────────────────▶│                    │
+      │                    │◀──────────────────────│                    │
+      │  Choisit assigné   │                       │                    │
+      │  Soumet le formulaire                      │                    │
+      │───────────────────▶│                       │                    │
+      │                    │ INSERT tasks          │                    │
+      │                    │ { assigned_to: userId }                    │
+      │                    │──────────────────────▶│                    │
+      │                    │                       │ TRIGGER:           │
+      │                    │                       │ notify_task_assigned()
+      │                    │                       │ → INSERT notifications
+      │                    │                       │   { user_id: assigné.id,
+      │                    │                       │     type: 'task_assigned',
+      │                    │                       │     entity_id: task.id }
+      │                    │                       │──────────────────▶│
+      │  Tâche créée ✅    │                       │                    │
+      │◀───────────────────│                       │                    │
+      │                    │                       │  [Realtime push]   │
+      │                    │                       │  Supabase channel  │
+      │                    │                       │─────────────────────────▶
+      │                    │                       │                    │ 🔔 Bell +1
+      │                    │                       │                    │ Badge rouge
+      │                    │                       │                    │
+      │                    │                       │          [Assigné clique la cloche]
+      │                    │                       │◀──────────────────│
+      │                    │                       │ SELECT tasks WHERE id=entity_id
+      │                    │                       │──────────────────▶│
+      │                    │                       │◀──────────────────│
+      │                    │                       │    Détails tâche + status picker
+      │                    │                       │──────────────────▶│
+      │                    │                       │                    │ UPDATE tasks
+      │                    │                       │◀──────────────────│ SET status='done'
+```
+
+---
+
+### 5.5 Diagramme de séquence — Campagne email & tracking
+
+```
+  Admin           app/settings       /api/brevo/campaign      Brevo API      Destinataires
+    │                  │                     │                    │                │
+    │  Compose email   │                     │                    │                │
+    │  Choisit rôle    │                     │                    │                │
+    │  "partner"       │                     │                    │                │
+    │─────────────────▶│                     │                    │                │
+    │                  │ POST campaignId     │                    │                │
+    │                  │────────────────────▶│                    │                │
+    │                  │                     │ SELECT profiles    │                │
+    │                  │                     │ WHERE role='partner'               │
+    │                  │                     │ (FIX: was contacts table before)   │
+    │                  │                     │ → liste filtrée    │                │
+    │                  │                     │                    │                │
+    │                  │                     │ POUR chaque profil │                │
+    │                  │                     │ → génère trackingUrl               │
+    │                  │                     │ → pixel open       │                │
+    │                  │                     │ POST /smtp/email   │                │
+    │                  │                     │────────────────────▶│               │
+    │                  │                     │                    │ Send email ───▶│
+    │                  │                     │ UPDATE campaigns   │                │
+    │                  │                     │ SET status='sent'  │                │
+    │                  │ { sent: N } ✅      │                    │                │
+    │◀─────────────────│                     │                    │                │
+    │                  │                     │                    │    [User clique le lien]
+    │                  │                     │◀───────────────────────────────────│
+    │                  │                     │ GET ?webhook=1&event=click          │
+    │                  │                     │ rpc('increment_campaign_clicks')   │
+    │                  │                     │ click_count += 1   │                │
+    │                  │                     │                    │                │
+    │  [Admin refresh] │                     │                    │                │
+    │  Voit % clics mis à jour dans l'app    │                    │                │
+```
+
+---
+
+### 5.6 Diagramme d'activité — Pipeline Kanban
+
+```
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  DÉMARRER                                                        │
+  └──────────────────────────────┬──────────────────────────────────┘
+                                 ▼
+                    ┌────────────────────────┐
+                    │  Créer un nouveau lead  │
+                    │  (titre, valeur, contact│
+                    │   assigné à un user)    │
+                    └───────────┬────────────┘
+                                │
+                                ▼
+                    ┌────────────────────────┐
+                    │     NOUVEAU            │   ← status = 'new'
+                    │  Lead entrant          │
+                    └───────────┬────────────┘
+                                │ drag-and-drop ou édition
+                                ▼
+                    ┌────────────────────────┐
+                    │     EN COURS           │   ← status = 'in_progress'
+                    │  Qualification         │
+                    └───────────┬────────────┘
+                                │
+                    ┌───────────┴────────────┐
+                    ▼                        ▼
+        ┌───────────────────┐    ┌──────────────────────┐
+        │  Réunion concluante│    │  Pas d'intérêt       │
+        └─────────┬─────────┘    └──────────┬───────────┘
+                  ▼                         ▼
+        ┌───────────────────┐    ┌──────────────────────┐
+        │    CONVERTI       │    │       PERDU           │
+        │  Deal gagné ✅    │    │  Archivé ❌           │
+        │  CA += valeur     │    │                      │
+        └───────────────────┘    └──────────────────────┘
+                  │
+                  ▼
+        ┌───────────────────┐
+        │ Dashboard mis à   │
+        │ jour (KPIs)       │
+        └───────────────────┘
+```
+
+---
+
+### 5.7 Diagramme de déploiement
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  DÉVELOPPEUR                                                             │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │  VS Code  ·  git commit  ·  git push origin main                │   │
+│  └──────────────────────────────┬──────────────────────────────────┘   │
+└─────────────────────────────────┼───────────────────────────────────────┘
+                                  │ push event (webhook)
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  GITHUB                                                                  │
+│  repository: Alim-Samira/aaas-crm  ·  branch: main                     │
+└──────────────────────────────────┬──────────────────────────────────────┘
+                                   │ Vercel GitHub App
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  VERCEL                                                                  │
+│  ┌────────────┐  ┌────────────┐  ┌─────────────────────────────────┐   │
+│  │ next build │→ │ Type check │→ │ Deploy → aaas-crm.vercel.app     │   │
+│  └────────────┘  └────────────┘  └─────────────────────────────────┘   │
+│  Env vars: SUPABASE_URL · SUPABASE_ANON_KEY · SERVICE_ROLE_KEY          │
+│            BREVO_API_KEY · BREVO_SENDER_EMAIL · NEXT_PUBLIC_APP_URL     │
+└──────────────────────────────────┬──────────────────────────────────────┘
+                                   │
+                 ┌─────────────────┴────────────────┐
+                 ▼                                   ▼
+┌────────────────────────────┐     ┌────────────────────────────────────┐
+│       SUPABASE             │     │          BREVO                      │
+│  hbkamwcuuiscoworqbio      │     │  api.brevo.com                      │
+│  ┌──────────────────────┐  │     │  ┌─────────────────────────────┐   │
+│  │  PostgreSQL 15       │  │     │  │  SMTP transactionnel        │   │
+│  │  Auth JWT            │  │     │  │  Campagnes ciblées par rôle │   │
+│  │  RLS policies        │  │     │  │  Tracking clics/ouvertures  │   │
+│  │  Realtime channels   │  │     │  └─────────────────────────────┘   │
+│  └──────────────────────┘  │     └────────────────────────────────────┘
+└────────────────────────────┘
+```
+
+---
+
+## 6. Fonctionnalités par module
+
+### 🔔 Notifications (nouveau)
+- Cloche dans la Sidebar avec badge rouge du nombre de non-lues
+- **Realtime** via Supabase channel + polling toutes les 30s
+- Cliquer sur la cloche → tiroir latéral avec liste de notifications
+- **Tâches assignées** : voir titre, description, priorité, échéance
+- **Modifier le statut** directement depuis le tiroir (À faire / En cours / Terminée / En retard)
+- Recherche dans les notifications, marquer lu/supprimer
+
+### 🎯 Pipeline — Assignation de leads
+- Dans le modal de création/édition d'un lead : champ **"Assigner à"**
+- Admin voit tous les utilisateurs ; les non-admins voient uniquement eux-mêmes
+- Sur assignation → notification automatique via trigger SQL
+
+### ✅ Tâches — Assignation
+- Même principe que les leads : champ **"Assigner à"** dans le modal
+- Avatar de l'assigné visible sur chaque carte kanban
+- Notification créée automatiquement via trigger `notify_task_assigned()`
+
+### 📧 Campagnes email — Corrections
+- **Fix ciblage** : les destinataires sont maintenant lus depuis `profiles WHERE role = ?` (avant : table `contacts` → tout le monde recevait)
+- **Click tracking** : chaque email contient un lien avec `?webhook=1&event=click&campaignId=...` → le compteur `click_count` s'incrémente en base dès le clic
+- **Open tracking** : pixel 1×1 transparent dans chaque email → `open_count` incrémenté
+
+### ⚙️ Master Admin — Hiérarchie
+- Email `alim.samira2002@gmail.com` = Master Admin protégé (trigger SQL empêche modification de son rôle)
+- Master Admin voit tous les utilisateurs groupés par section (Master / Sous-admins / Utilisateurs)
+- Peut activer **"Approuver admins"** pour chaque sous-admin (toggle persisté en DB)
+- Sous-admins ne peuvent modifier que les rôles non-admin
+
+---
+
+## 7. Système RBAC — Rôles & Permissions
+
+### Matrice des accès aux modules
+
+| Module | Master Admin | Sous-Admin | Commercial | Standard | Partenaire |
+|--------|:---:|:---:|:---:|:---:|:---:|
+| Dashboard | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Pipeline | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Contacts | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Entreprises | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Tâches | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Paramètres | ✅ | ✅ | ❌ | ❌ | ❌ |
+
+> Les permissions sont configurables par le Master Admin dans Paramètres → Permissions.
+
+### Hiérarchie des droits admin
+
+```
+👑 Master Admin (alim.samira2002@gmail.com)
+   ├── Voir tous les utilisateurs ✅
+   ├── Modifier tous les rôles (sauf le sien) ✅
+   ├── Accorder "can_approve_admin" aux sous-admins ✅
+   └── Protégé par trigger SQL (rôle inmodifiable) 🔒
+
+📋 Sous-Admin (role='admin', pas master)
+   ├── Voir utilisateurs sauf master ✅
+   ├── Modifier : commercial / standard / partner uniquement ✅
+   ├── Ne peut PAS modifier un autre admin ❌
+   └── Approuver demandes admin : seulement si master a accordé la permission
+```
+
+---
+
+## 8. Installation locale
 
 ```bash
-# 1. Cloner le repo
-git clone https://github.com/VOTRE_USERNAME/aaas-crm.git
+# 1. Cloner le dépôt
+git clone https://github.com/Alim-Samira/aaas-crm.git
 cd aaas-crm
 
 # 2. Installer les dépendances
 npm install
 
-# 3. Copier les variables d'environnement
+# 3. Configurer les variables d'environnement
 cp .env.example .env.local
-# Remplir NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, BREVO_API_KEY
+# → Remplir avec vos clés Supabase et Brevo
 
 # 4. Lancer en développement
 npm run dev
@@ -286,220 +579,105 @@ npm run dev
 
 ---
 
-## 7. Configuration Supabase
+## 9. Configuration Supabase
 
-### Étape 1 — Créer le projet Supabase
-1. Aller sur [supabase.com](https://supabase.com) → New project
-2. Choisir une région proche (eu-west-1 recommandé)
-3. Copier `Project URL` et `anon public key` dans `.env.local`
+### Exécuter les patches SQL dans l'ordre
 
-### Étape 2 — Exécuter les migrations SQL
-Dans **Supabase → SQL Editor** :
+Dans Supabase → SQL Editor, exécuter dans cet ordre :
+
+```
+1. patch_v1.7_DEFINITIF.sql         → Schéma de base + RLS
+2. patch_ADMIN_DEFINITIF.sql        → Protection master admin
+3. patch_CAMPAIGNS_TASKS.sql        → Campagnes + tâches
+4. patch_master_admin.sql           → admin_permissions table
+5. patch_notifications_and_fixes.sql → Notifications + fix tracking
+```
+
+### Fonction RPC requise
 
 ```sql
--- 1. Schema initial
--- Copier-coller le contenu de supabase/schema.sql
-
--- 2. Patch rôles + pipeline
--- Copier-coller le contenu de supabase/patch_v1.4_fixed.sql
-```
-
-### Étape 3 — Configurer l'authentification
-- Supabase Dashboard → Authentication → URL Configuration
-- **Site URL** : `https://votre-app.vercel.app`
-- **Redirect URLs** : `https://votre-app.vercel.app/auth/callback`
-
-### Étape 4 — Vérifier votre rôle admin
-```sql
--- Vérifier que votre compte est bien admin
-SELECT id, email, role FROM profiles WHERE email = 'votre@email.com';
--- Doit retourner role = 'admin'
-```
-
----
-
-## 8. Déploiement Vercel + GitHub CI/CD
-
-### Étape 1 — Préparer le repository GitHub
-
-```bash
-# Dans votre projet local
-git init
-git add .
-git commit -m "Initial commit — AAAS CRM"
-
-# Créer un repo sur github.com, puis :
-git remote add origin https://github.com/Alim-Samira/aaas-crm.git
-git branch -M main
-git push -u origin main
-```
-
-### Étape 2 — Connecter Vercel à GitHub
-
-1. Aller sur [vercel.com](https://vercel.com) → **New Project**
-2. Cliquer **Import Git Repository** → Sélectionner `aaas-crm`
-3. Framework Preset : **Next.js** (détecté automatiquement)
-4. Cliquer **Deploy** (premier déploiement sans variables = erreur attendue)
-
-### Étape 3 — Ajouter les variables d'environnement dans Vercel
-
-Dans **Vercel → Project → Settings → Environment Variables** :
-
-| Variable | Valeur | Environnements |
-|----------|--------|----------------|
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://xxx.supabase.co` | Production, Preview, Development |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJ...` | Production, Preview, Development |
-| `BREVO_API_KEY` | `xkeysib-...` | Production, Preview |
-| `NEXTAUTH_SECRET` | Chaîne aléatoire 32 chars | Production |
-
-### Étape 4 — Redéployer
-
-```bash
-# Soit depuis Vercel Dashboard → Deployments → Redeploy
-# Soit en faisant un commit :
-git commit --allow-empty -m "trigger redeploy"
-git push
-```
-
-### Étape 5 — CI/CD automatique (déjà actif !)
-
-Une fois Vercel connecté à GitHub, **chaque `git push` sur `main`** déclenche automatiquement :
-
-```
-git push origin main
-        │
-        ▼
-  GitHub webhook
-        │
-        ▼
-  Vercel Build
-  ┌─────────────┐
-  │ npm install │
-  │ npm build   │
-  │ Next.js opt │
-  └─────────────┘
-        │
-        ▼
-  Deploy to production
-  https://aaas-crm.vercel.app
-```
-
-### Étape 6 — Preview deployments (branches)
-
-```bash
-# Créer une branche feature
-git checkout -b feature/nouvelle-fonctionnalite
-git push origin feature/nouvelle-fonctionnalite
-# → Vercel crée automatiquement un URL de preview unique
-# → Tester avant de merger dans main
-```
-
-### Structure des branches recommandée
-
-```
-main          → Production (aaas-crm.vercel.app)
-├── develop   → Staging (dev préview Vercel)
-│   ├── feature/pipeline-custom
-│   ├── feature/email-templates
-│   └── fix/role-management
-```
-
----
-
-## 9. Gestion des rôles et permissions
-
-### Matrice des accès
-
-| Module | Admin | CEO | Commercial | Partenaire |
-|--------|:-----:|:---:|:----------:|:----------:|
-| Dashboard | DONE | DONE | DONE | ❌ |
-| Pipeline | DONE | DONE | DONE | ❌ |
-| Contacts | DONE | DONE | DONE | DONE |
-| Entreprises | DONE | DONE | DONE | DONE |
-| Tâches | DONE | DONE | DONE | ❌ |
-| Paramètres | DONE | ❌ | ❌ | ❌ |
-
-### Processus d'inscription pour rôles élevés
-
-```
-Utilisateur choisit CEO ou Admin
-          │
-          ▼
-  Compte créé avec role='commercial' (accès limité)
-          │
-          ▼
-  access_request créée (status='pending')
-          │
-          ▼
-  Admin voit badge ⚠️ dans l'onglet "Demandes d'accès"
-          │
-        ┌─┴──────────┐
-        ▼             ▼
-   Approuver        Refuser
-        │             │
-        ▼             ▼
-  rpc('update_user_role')  request.status = 'rejected'
-  → role = 'ceo' / 'admin'
+-- Doit exister avec SECURITY DEFINER
+CREATE OR REPLACE FUNCTION public.update_user_role(
+  target_user_id UUID, new_role TEXT
+) RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  -- Guards: master admin protection, role validation
+  UPDATE public.profiles SET role = new_role WHERE id = target_user_id;
+END;
+$$;
 ```
 
 ---
 
 ## 10. Variables d'environnement
 
-Créer un fichier `.env.local` à la racine :
+Fichier `.env.local` (ne jamais committer) :
 
 ```env
-# Supabase (obligatoire)
-NEXT_PUBLIC_SUPABASE_URL=https://votre-projet.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+# Supabase — obligatoire
+NEXT_PUBLIC_SUPABASE_URL=https://hbkamwcuuiscoworqbio.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...  # rôle: anon
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGci...      # rôle: service_role (API routes uniquement)
 
-# Brevo (pour l'emailing automatique)
+# Brevo — campagnes email
 BREVO_API_KEY=xkeysib-...
+BREVO_SENDER_EMAIL=votre@email.com         # doit être vérifié dans Brevo
+BREVO_SENDER_NAME=AAAS CRM
 
-# Next.js
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=une-chaine-aleatoire-de-32-caracteres-minimum
+# App URL — pour les webhooks tracking
+NEXT_PUBLIC_APP_URL=https://aaas-crm.vercel.app
 ```
-
-> ⚠️ Ne jamais committer `.env.local`. Vérifier que `.gitignore` contient `.env.local`.
 
 ---
 
-## Screenshots attendus
+## 11. Déploiement CI/CD
 
+```bash
+# Déploiement automatique à chaque push sur main
+git add .
+git commit -m "feat: description de la fonctionnalité"
+git push origin main
+# → Vercel détecte le push, lance next build, déploie en production
+# → URL stable : https://aaas-crm.vercel.app
 ```
-/screenshots
-├── 01-login.png              # Page de connexion glassmorphique
-├── 02-signup-role.png        # Sélection du rôle à l'inscription
-├── 03-dashboard.png          # Dashboard avec KPIs et graphiques
-├── 04-pipeline-kanban.png    # Pipeline 6 étapes AAAS
-├── 05-contacts.png           # Liste des contacts avec recherche
-├── 06-companies.png          # Répertoire entreprises avec avatars
-├── 07-tasks.png              # Kanban des tâches
-├── 08-settings-profile.png   # Profil utilisateur
-├── 09-settings-requests.png  # Demandes d'accès (admin)
-├── 10-settings-users.png     # Gestion des utilisateurs (admin)
-└── 11-settings-perms.png     # Matrice des permissions (admin)
-```
+
+> ⚠️ Les URLs en `https://aaas-crm-xxx-aaas.vercel.app` sont des **previews** (branches/PRs).  
+> L'URL de production est toujours `https://aaas-crm.vercel.app`.
 
 ---
 
 ## Auteur
 
-**Alim Samira** — Communication Digitale  
-Stack: Next.js 14 · Supabase · Brevo · Tailwind CSS · Vercel
+**Alim Samira** — Communication Digitale · MIAGE  
+Stack: Next.js 14 · Supabase · Brevo · Tailwind CSS · Vercel · TypeScript
+
+GitHub → [github.com/Alim-Samira](https://github.com/Alim-Samira)  
+Email → alim.samira2002@gmail.com  
+Portfolio → [alim-samira.github.io/PortFolio](https://alim-samira.github.io/PortFolio/)
 
 ---
 
-*Projet réalisé dans le cadre du cours de développement web full-stack — Architecture SaaS Cloud*
+## 12. Licence
 
-## 📄 License
+```
+© 2026 Alim Samira — Tous droits réservés
 
-This project is created for educational purposes and is protected by copyright.
-No part of this publication may be reproduced, distributed, or used without prior permission from the original author. 
-For permission requests, please contact the author.
+Ce projet est une œuvre originale réalisée dans le cadre d'un cursus académique.
 
-GitHub: https://github.com/Alim-Samira
-Mail: alim.samira2002@gmail.com
+INTERDICTIONS — Sans autorisation écrite préalable de l'auteur :
+  ✗ Reproduction totale ou partielle du code, des designs ou de la documentation
+  ✗ Distribution, publication ou mise en ligne de toute partie de ce projet
+  ✗ Utilisation commerciale ou non-commerciale de tout élément de ce projet
+  ✗ Modification ou création d'œuvres dérivées
 
-MIT — Remember to follow the above licensing terms.
+AUTORISATIONS — Avec attribution explicite à l'auteur :
+  ✓ Consultation à des fins d'apprentissage personnel (lecture uniquement)
+  ✓ Citation courte avec mention obligatoire de la source et de l'auteur
+
+Pour toute demande de permission :
+  → alim.samira2002@gmail.com
+  → https://github.com/Alim-Samira
+
+Ce projet ne relève PAS de la licence MIT malgré toute mention contraire ailleurs.
+L'auteur se réserve le droit de poursuivre toute violation des droits d'auteur.
+```
