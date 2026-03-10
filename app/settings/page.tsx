@@ -12,7 +12,7 @@ import {
   CheckCircle, Loader2, UserPlus, Trash2,
   Eye, EyeOff, AlertCircle, Clock, Check, X,
   ToggleLeft, ToggleRight, Users, Mail,
-  Send, BarChart2, Plus, RefreshCw,
+  Send, BarChart2, Plus, RefreshCw, Pencil,
 } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase';
 import { PageLoader } from '@/components/LoadingScreen';
@@ -427,278 +427,485 @@ function UserManagementPanel() {
 }
 
 /* ══════════════════════════════════════════════════════════════
-   CAMPAGNES EMAIL — Brevo
-    NOUVEAU : Automatisation emailing et communication digitale
+   CAMPAGNES EMAIL — PREMIUM GLASSMORPHISM
+   aperçu haute qualité · éditeur riche · brouillons/envoyées
 ══════════════════════════════════════════════════════════════ */
+
 interface Campaign {
   id: string;
   name: string;
   subject: string;
+  body: string | null;
   status: 'draft' | 'sent' | 'scheduled';
   recipients: number;
+  target_role: string;
   sent_at: string | null;
   created_at: string;
 }
 
+// ─── Email Preview Modal ─────────────────────────────────────
+function PreviewModal({ c, onClose }: { c: Campaign; onClose: () => void }) {
+  const dateStr = c.sent_at
+    ? new Date(c.sent_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+    : new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  const previewBody = (c.body ?? '')
+    .replace(/\{\{first_name\}\}/g, 'Samira')
+    .replace(/\{\{last_name\}\}/g, 'Alim')
+    .replace(/\{\{email\}\}/g, 'samira@exemple.fr');
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '24px',
+    }} onClick={onClose}>
+      <div style={{
+        width: '100%', maxWidth: 640, maxHeight: '90vh', overflowY: 'auto',
+        background: '#080d1a', borderRadius: 24,
+        border: '1px solid rgba(99,102,241,0.2)',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.7)',
+      }} onClick={e => e.stopPropagation()}>
+
+        {/* Modal header */}
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Eye style={{ width: 14, height: 14, color: '#818cf8' }} />
+            </div>
+            <div>
+              <p style={{ color: 'white', fontSize: 13, fontWeight: 800, margin: 0 }}>Aperçu email</p>
+              <p style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11, margin: 0 }}>Rendu simulé · Données fictives</p>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,0.4)' }}>
+            <X style={{ width: 14, height: 14 }} />
+          </button>
+        </div>
+
+        {/* Email render */}
+        <div style={{ padding: '24px' }}>
+          <div style={{ background: '#0a0f1e', borderRadius: 20, border: '1px solid rgba(99,102,241,0.12)', overflow: 'hidden' }}>
+
+            {/* Email header */}
+            <div style={{ background: 'linear-gradient(135deg,#1e1b4b 0%,#2e1065 50%,#1e1b4b 100%)', padding: '24px 28px', borderBottom: '1px solid rgba(99,102,241,0.15)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 12, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 900, color: 'white', fontStyle: 'italic' }}>A</div>
+                <div>
+                  <p style={{ color: 'white', fontWeight: 900, fontSize: 15, margin: 0 }}>AAAS CRM</p>
+                  <p style={{ color: 'rgba(199,210,254,0.45)', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', margin: 0 }}>Communication Digitale</p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const }}>
+                {[
+                  { l: 'De', v: 'AAAS CRM' },
+                  { l: 'À', v: 'Samira Alim' },
+                  { l: 'Date', v: dateStr },
+                ].map(m => (
+                  <div key={m.l} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: '4px 10px', fontSize: 10 }}>
+                    <span style={{ color: 'rgba(255,255,255,0.3)' }}>{m.l} : </span>
+                    <span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 700 }}>{m.v}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Subject */}
+            <div style={{ padding: '18px 28px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+              <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, margin: '0 0 4px' }}>Objet</p>
+              <p style={{ color: 'white', fontSize: 16, fontWeight: 800, margin: '0 0 18px' }}>{c.subject}</p>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: '20px 28px 24px' }}>
+              <div style={{ color: '#94a3b8', fontSize: 13, lineHeight: 1.85, whiteSpace: 'pre-wrap' as const }}>{previewBody}</div>
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '14px 28px', background: 'rgba(8,12,25,0.8)', borderTop: '1px solid rgba(99,102,241,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: '#334155', fontSize: 10 }}>AAAS CRM · Automatisation digitale</span>
+              <span style={{ color: 'rgba(99,102,241,0.45)', fontSize: 9, padding: '2px 8px', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 20 }}>Brevo</span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ padding: '0 24px 24px', display: 'flex', justifyContent: 'center' }}>
+          <button onClick={onClose} style={{ padding: '10px 28px', borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            Fermer l'aperçu
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Editor Modal ─────────────────────────────────────────────
+function EditorModal({
+  mode, camp, contacts, onClose, onSaved,
+}: {
+  mode: 'create' | 'edit';
+  camp?: Campaign;
+  contacts: { email: string; first_name: string; last_name: string }[];
+  onClose: () => void;
+  onSaved: (c: Campaign) => void;
+}) {
+  const supabase = getSupabaseClient();
+  const [name,    setName]    = useState(camp?.name    ?? '');
+  const [subject, setSubject] = useState(camp?.subject ?? '');
+  const [body,    setBody]    = useState(camp?.body    ?? '');
+  const [target,  setTarget]  = useState<string>(camp?.target_role ?? 'all');
+  const [saving,  setSaving]  = useState(false);
+  const [err,     setErr]     = useState('');
+  const [showPre, setShowPre] = useState(false);
+
+  const previewCamp: Campaign = {
+    id: camp?.id ?? 'preview', name, subject, body, status: 'draft',
+    recipients: 0, target_role: target, sent_at: null, created_at: new Date().toISOString(),
+  };
+
+  async function handleSave() {
+    if (!name.trim() || !subject.trim() || !body.trim()) { setErr('Tous les champs sont requis.'); return; }
+    setSaving(true); setErr('');
+    let recipCount = contacts.length;
+    if (target !== 'all') {
+      const { data: pr } = await supabase.from('profiles').select('email').eq('role', target).not('email', 'is', null);
+      const s = new Set((pr ?? []).map((p: any) => p.email?.toLowerCase()));
+      recipCount = contacts.filter(c => c.email && s.has(c.email.toLowerCase())).length || contacts.length;
+    }
+
+    if (mode === 'create') {
+      const { data, error } = await supabase.from('email_campaigns').insert({ name, subject, body, status: 'draft', recipients: recipCount, target_role: target }).select().single();
+      if (error) { setErr('Table email_campaigns manquante — exécutez le SQL dans Supabase.'); setSaving(false); return; }
+      onSaved(data as Campaign);
+    } else if (camp) {
+      const { data, error } = await supabase.from('email_campaigns').update({ name, subject, body, target_role: target, recipients: recipCount }).eq('id', camp.id).select().single();
+      if (error) { setErr(error.message); setSaving(false); return; }
+      onSaved(data as Campaign);
+    }
+    setSaving(false);
+  }
+
+  const TEMPLATES = [
+    { name: '🎉 Newsletter', subject: 'Actualités AAAS — ce mois-ci', body: 'Bonjour {{first_name}},\n\nVoici les dernières actualités.\n\n🚀 Nouveautés\n• Nouvelles fonctionnalités CRM\n• Optimisation pipeline\n\nCordialement,\nL\'équipe AAAS' },
+    { name: '💰 Promo -30%', subject: "Offre exclusive jusqu'à -30%", body: 'Bonjour {{first_name}},\n\nNous avons une offre exceptionnelle pour vous.\n\n🔥 -30% sur nos prestations\n• Audit stratégie digitale\n• Configuration CRM\n• Formation équipe\n\nRépondez à cet email pour en profiter.\n\nCordialement,\nL\'équipe AAAS' },
+    { name: '👋 Bienvenue', subject: 'Bienvenue chez AAAS, {{first_name}} !', body: 'Bonjour {{first_name}},\n\nBienvenue dans notre CRM !\n\n🎯 Pour commencer :\n1. Complétez votre profil\n2. Explorez le dashboard\n3. Créez votre premier lead\n\nNotre équipe est à votre disposition.\n\nCordialement,\nL\'équipe AAAS' },
+  ];
+
+  return (
+    <>
+      {showPre && <PreviewModal c={previewCamp} onClose={() => setShowPre(false)} />}
+      <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={onClose}>
+        <div style={{ width: '100%', maxWidth: 680, maxHeight: '92vh', overflowY: 'auto', background: '#0d1117', borderRadius: 24, border: '1px solid rgba(99,102,241,0.2)', boxShadow: '0 32px 80px rgba(0,0,0,0.6)' }} onClick={e => e.stopPropagation()}>
+
+          {/* Header */}
+          <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 34, height: 34, borderRadius: 11, background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {mode === 'create' ? <Plus style={{ width: 15, height: 15, color: '#818cf8' }} /> : <Pencil style={{ width: 14, height: 14, color: '#818cf8' }} />}
+              </div>
+              <div>
+                <p style={{ color: 'white', fontSize: 14, fontWeight: 800, margin: 0 }}>{mode === 'create' ? 'Nouvelle campagne' : 'Modifier la campagne'}</p>
+                <p style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11, margin: 0 }}>Variables : {'{{first_name}}'} {'{{last_name}}'} {'{{email}}'}</p>
+              </div>
+            </div>
+            <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,0.4)' }}>
+              <X style={{ width: 14, height: 14 }} />
+            </button>
+          </div>
+
+          <div style={{ padding: 24, display: 'flex', flexDirection: 'column' as const, gap: 18 }}>
+            {/* Templates */}
+            {mode === 'create' && (
+              <div>
+                <p style={{ color: 'rgba(255,255,255,0.25)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 8 }}>Partir d'un template</p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
+                  {TEMPLATES.map(t => (
+                    <button key={t.name} onClick={() => { setName(t.name); setSubject(t.subject); setBody(t.body); }}
+                      style={{ padding: '6px 14px', borderRadius: 10, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', color: 'rgba(199,210,254,0.7)', fontSize: 11, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}>
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Name + Target row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, color: 'rgba(255,255,255,0.25)', marginBottom: 8 }}>Nom *</label>
+                <input value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Newsletter mars 2026"
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '11px 16px', color: 'white', fontSize: 13, outline: 'none', boxSizing: 'border-box' as const }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, color: 'rgba(255,255,255,0.25)', marginBottom: 8 }}>Destinataires</label>
+                <select value={target} onChange={e => setTarget(e.target.value)}
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '11px 16px', color: 'white', fontSize: 13, outline: 'none', cursor: 'pointer' }}>
+                  <option value="all" style={{ background: '#0d1117' }}>Tous les contacts</option>
+                  <option value="commercial" style={{ background: '#0d1117' }}>Commerciaux uniquement</option>
+                  <option value="partner" style={{ background: '#0d1117' }}>Partenaires uniquement</option>
+                  <option value="admin" style={{ background: '#0d1117' }}>Admins uniquement</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Subject */}
+            <div>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, color: 'rgba(255,255,255,0.25)', marginBottom: 8 }}>Objet de l'email *</label>
+              <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Ex: Découvrez nos nouveautés"
+                style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '11px 16px', color: 'white', fontSize: 13, outline: 'none', boxSizing: 'border-box' as const }} />
+            </div>
+
+            {/* Body */}
+            <div>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, color: 'rgba(255,255,255,0.25)', marginBottom: 8 }}>Contenu *</label>
+              <textarea rows={8} value={body} onChange={e => setBody(e.target.value)} placeholder={'Bonjour {{first_name}},\n\nVotre message ici…'}
+                style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '11px 16px', color: 'white', fontSize: 13, outline: 'none', resize: 'none' as const, fontFamily: 'inherit', lineHeight: 1.7, boxSizing: 'border-box' as const }} />
+            </div>
+
+            {err && <p style={{ color: '#f87171', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 12, padding: '10px 14px', fontSize: 12, margin: 0 }}>{err}</p>}
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center' }}>
+              <button onClick={() => setShowPre(true)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 18px', borderRadius: 13, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.18)', color: '#818cf8', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                <Eye style={{ width: 13, height: 13 }} /> Aperçu
+              </button>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={onClose} style={{ padding: '10px 20px', borderRadius: 13, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Annuler</button>
+                <button onClick={handleSave} disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 22px', borderRadius: 13, background: 'white', border: 'none', color: 'black', fontSize: 12, fontWeight: 800, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
+                  {saving ? <><Loader2 style={{ width: 13, height: 13, animation: 'spin 0.6s linear infinite' }} /> Sauvegarde…</> : <><Check style={{ width: 13, height: 13 }} /> {mode === 'create' ? 'Créer' : 'Enregistrer'}</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── Campaign Card ────────────────────────────────────────────
+function CampaignCard({ c, onEdit, onDelete, onSend, onPreview, sending }: {
+  c: Campaign; onEdit: () => void; onDelete: () => void;
+  onSend: () => void; onPreview: () => void; sending: boolean;
+}) {
+  const isSent = c.status === 'sent';
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${isSent ? 'rgba(52,211,153,0.15)' : 'rgba(255,255,255,0.07)'}`, borderRadius: 18, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' as const, transition: 'transform 0.15s' }}>
+      <div style={{ width: 40, height: 40, borderRadius: 13, background: isSent ? 'rgba(52,211,153,0.08)' : 'rgba(99,102,241,0.08)', border: `1px solid ${isSent ? 'rgba(52,211,153,0.15)' : 'rgba(99,102,241,0.15)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        {isSent ? <CheckCircle style={{ width: 17, height: 17, color: '#34d399' }} /> : <Mail style={{ width: 17, height: 17, color: '#818cf8' }} />}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 3, flexWrap: 'wrap' as const }}>
+          <p style={{ color: 'white', fontWeight: 800, fontSize: 14, margin: 0 }}>{c.name}</p>
+          <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, padding: '2px 10px', borderRadius: 20, border: '1px solid', ...(isSent ? { color: '#34d399', background: 'rgba(52,211,153,0.08)', borderColor: 'rgba(52,211,153,0.2)' } : { color: 'rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.08)' }) }}>
+            {isSent ? 'ENVOYÉE' : 'BROUILLON'}
+          </span>
+        </div>
+        <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{c.subject}</p>
+        <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 11, margin: '3px 0 0' }}>
+          {c.recipients} destinataire{c.recipients !== 1 ? 's' : ''}
+          {c.sent_at && ` · Envoyée ${new Date(c.sent_at).toLocaleDateString('fr-FR')}`}
+        </p>
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+        <button onClick={onPreview} title="Aperçu" style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#818cf8' }}>
+          <Eye style={{ width: 14, height: 14 }} />
+        </button>
+        {!isSent && (
+          <>
+            <button onClick={onEdit} title="Modifier" style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,0.4)' }}>
+              <Pencil style={{ width: 13, height: 13 }} />
+            </button>
+            <button onClick={onDelete} title="Supprimer" style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(239,68,68,0.5)' }}>
+              <Trash2 style={{ width: 13, height: 13 }} />
+            </button>
+            <button onClick={onSend} disabled={sending} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '0 16px', height: 34, borderRadius: 10, background: sending ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.9)', border: 'none', color: 'white', fontSize: 12, fontWeight: 800, cursor: sending ? 'not-allowed' : 'pointer', transition: 'all 0.15s' }}>
+              {sending ? <><Loader2 style={{ width: 13, height: 13, animation: 'spin 0.6s linear infinite' }} /> Envoi…</> : <><Send style={{ width: 13, height: 13 }} /> Envoyer via Brevo</>}
+            </button>
+          </>
+        )}
+        {isSent && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#34d399', fontSize: 12, fontWeight: 700 }}>
+            <CheckCircle style={{ width: 14, height: 14 }} /> Envoyée
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main CampaignsPanel ──────────────────────────────────────
 function CampaignsPanel() {
   const supabase = getSupabaseClient();
-  const [campaigns, setCampaigns]  = useState<Campaign[]>([]);
-  const [contacts,  setContacts]   = useState<{ email: string; first_name: string; last_name: string }[]>([]);
-  const [loading,   setLoading]    = useState(true);
-  const [sending,   setSending]    = useState<string | null>(null);
-  const [showForm,  setShowForm]   = useState(false);
-  const [feedback,  setFeedback]   = useState('');
-  const [error,     setError]      = useState('');
-
-  // Formulaire nouvelle campagne
-  const [name,      setName]       = useState('');
-  const [subject,   setSubject]    = useState('');
-  const [body,      setBody]       = useState('');
-  const [target,    setTarget]     = useState<'all' | 'commercial' | 'partner'>('all');
-  const [creating,  setCreating]   = useState(false);
+  const [camps,    setCamps]    = useState<Campaign[]>([]);
+  const [contacts, setContacts] = useState<{ email: string; first_name: string; last_name: string }[]>([]);
+  const [loading,  setLoading]  = useState(true);
+  const [sending,  setSending]  = useState<string | null>(null);
+  const [feedback, setFeedback] = useState('');
+  const [errMsg,   setErrMsg]   = useState('');
+  const [editor,   setEditor]   = useState<{ mode: 'create' | 'edit'; camp?: Campaign } | null>(null);
+  const [preview,  setPreview]  = useState<Campaign | null>(null);
+  const [tab,      setTab]      = useState<'drafts' | 'sent'>('drafts');
 
   useEffect(() => { load(); }, []);
 
   async function load() {
     setLoading(true);
-    // Charger les campagnes depuis la table email_campaigns (si elle existe)
-    const { data: camps } = await supabase
-      .from('email_campaigns')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (camps) setCampaigns(camps as Campaign[]);
-
-    // Charger les contacts pour les destinataires
-    const { data: ctcts } = await supabase
-      .from('contacts')
-      .select('email, first_name, last_name')
-      .not('email', 'is', null);
-    if (ctcts) setContacts(ctcts);
+    const { data: c } = await supabase.from('email_campaigns').select('*').order('created_at', { ascending: false });
+    if (c) setCamps(c as Campaign[]);
+    const { data: ct } = await supabase.from('contacts').select('email, first_name, last_name').not('email', 'is', null);
+    if (ct) setContacts(ct);
     setLoading(false);
   }
 
-  async function sendCampaign(campaignId: string) {
-    setSending(campaignId);
-    setFeedback(''); setError('');
+  async function handleSend(c: Campaign) {
+    setSending(c.id); setFeedback(''); setErrMsg('');
     try {
-      const res = await fetch('/api/brevo/campaign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ campaignId }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? 'Erreur envoi');
-      setFeedback(` Campagne envoyée avec succès !`);
+      const res = await fetch('/api/brevo/campaign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ campaignId: c.id }) });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? 'Erreur envoi');
+      setFeedback(`✅ "${c.name}" envoyée à ${j.sent} destinataire${j.sent !== 1 ? 's' : ''} !`);
+      setTab('sent');
       load();
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setSending(null);
-    }
+    } catch (e: any) { setErrMsg(e.message); }
+    finally { setSending(null); }
   }
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name || !subject || !body) return setError('Tous les champs sont requis.');
-    setCreating(true); setError('');
-
-    // Filtrer les destinataires
-    let recipients = contacts;
-    if (target === 'commercial' || target === 'partner') {
-      // Récupérer les emails des users du rôle cible
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('role', target);
-      const roleEmails = new Set((profiles ?? []).map((p: any) => p.email));
-      recipients = contacts.filter(c => c.email && roleEmails.has(c.email));
-    }
-
-    // Sauvegarder en DB
-    const { data, error: err } = await supabase.from('email_campaigns').insert({
-      name,
-      subject,
-      body,
-      status: 'draft',
-      recipients: recipients.length,
-      target_role: target,
-    }).select().single();
-
-    if (err) {
-      // Si la table n'existe pas encore
-      setError('Table email_campaigns manquante. Exécutez le patch SQL ci-dessous.');
-      setCreating(false);
-      return;
-    }
-
-    setFeedback(` Campagne "${name}" créée (${recipients.length} destinataires)`);
-    setName(''); setSubject(''); setBody('');
-    setShowForm(false);
-    setCreating(false);
-    load();
+  async function handleDelete(id: string) {
+    if (!confirm('Supprimer cette campagne ?')) return;
+    await supabase.from('email_campaigns').delete().eq('id', id);
+    setCamps(prev => prev.filter(c => c.id !== id));
   }
 
-  const statusColor: Record<string, string> = {
-    draft:     'text-white/40 bg-white/5 border-white/10',
-    sent:      'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-    scheduled: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-  };
-  const statusLabel: Record<string, string> = {
-    draft: 'Brouillon', sent: 'Envoyée', scheduled: 'Programmée',
-  };
+  function upsertCamp(c: Campaign) {
+    setEditor(null);
+    setCamps(prev => {
+      const i = prev.findIndex(p => p.id === c.id);
+      if (i >= 0) { const n = [...prev]; n[i] = c; return n; }
+      return [c, ...prev];
+    });
+  }
+
+  const drafts = camps.filter(c => c.status !== 'sent');
+  const sent   = camps.filter(c => c.status === 'sent');
+
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'rgba(99,102,241,0.6)' }}>
+        <Loader2 style={{ width: 18, height: 18, animation: 'spin 0.6s linear infinite' }} />
+        <span style={{ fontSize: 13 }}>Chargement…</span>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="space-y-6">
+    <>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeInUp { from { opacity:0;transform:translateY(8px); } to { opacity:1;transform:none; } }
+        .camp-panel { animation: fadeInUp 0.3s ease; }
+      `}</style>
 
-      {/* Info SQL si table manquante */}
-      <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-2xl p-4">
-        <p className="text-xs text-indigo-300/70 font-bold uppercase tracking-widest mb-2">
-          ⚠️ Si les campagnes ne s'affichent pas
-        </p>
-        <p className="text-xs text-white/40 mb-2">Exécute ce SQL dans Supabase pour créer la table :</p>
-        <pre className="text-xs text-indigo-300/60 bg-black/30 rounded-xl p-3 overflow-x-auto font-mono">{`CREATE TABLE IF NOT EXISTS public.email_campaigns (
-  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name        TEXT NOT NULL,
-  subject     TEXT NOT NULL,
-  body        TEXT,
-  status      TEXT DEFAULT 'draft' CHECK (status IN ('draft','sent','scheduled')),
-  recipients  INT DEFAULT 0,
-  target_role TEXT DEFAULT 'all',
-  sent_at     TIMESTAMPTZ,
-  created_at  TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE public.email_campaigns ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "campaigns_admin" ON public.email_campaigns FOR ALL USING (public.is_admin());`}
-        </pre>
-      </div>
-
-      {/* Stats rapides */}
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: 'Total campagnes', value: campaigns.length, icon: Mail, color: 'text-indigo-400' },
-          { label: 'Envoyées',        value: campaigns.filter(c => c.status === 'sent').length, icon: Send, color: 'text-emerald-400' },
-          { label: 'Contacts',        value: contacts.length, icon: Users, color: 'text-blue-400' },
-        ].map(s => (
-          <div key={s.label} className="bg-white/5 border border-white/10 rounded-2xl p-4">
-            <s.icon className={`w-5 h-5 ${s.color} mb-2`} />
-            <p className="text-2xl font-black text-white">{s.value}</p>
-            <p className="text-xs text-white/30 mt-0.5">{s.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h3 className="text-sm font-bold text-white">Mes campagnes</h3>
-        <div className="flex gap-2">
-          <button onClick={load} className="text-white/20 hover:text-white/60 transition-colors p-2 rounded-xl hover:bg-white/5">
-            <RefreshCw className="w-4 h-4" />
-          </button>
-          <button onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 bg-white text-black font-bold px-4 py-2.5 rounded-2xl hover:scale-105 transition-transform text-sm">
-            <Plus className="w-4 h-4" /> Nouvelle campagne
-          </button>
-        </div>
-      </div>
-
-      {feedback && <p className="text-emerald-400 text-sm bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-2">{feedback}</p>}
-      {error    && <p className="text-rose-400 text-sm bg-rose-500/10 border border-rose-500/20 rounded-xl px-4 py-2">{error}</p>}
-
-      {/* Formulaire nouvelle campagne */}
-      {showForm && (
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
-          <h4 className="text-sm font-bold text-white uppercase tracking-widest">Nouvelle campagne email</h4>
-          <form onSubmit={handleCreate} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-widest text-white/30 mb-2">Nom *</label>
-                <input className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white placeholder-white/20 outline-none focus:border-white/30 transition-all"
-                  placeholder="Ex: Newsletter mars 2026" value={name} onChange={e => setName(e.target.value)} />
-              </div>
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-widest text-white/30 mb-2">Destinataires</label>
-                <select className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white outline-none"
-                  value={target} onChange={e => setTarget(e.target.value as any)}>
-                  <option value="all" className="bg-slate-900">Tous les contacts</option>
-                  <option value="commercial" className="bg-slate-900">Commerciaux uniquement</option>
-                  <option value="partner" className="bg-slate-900">Partenaires uniquement</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-white/30 mb-2">Objet de l'email *</label>
-              <input className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white placeholder-white/20 outline-none focus:border-white/30 transition-all"
-                placeholder="Ex: Découvrez nos nouveautés" value={subject} onChange={e => setSubject(e.target.value)} />
-            </div>
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-white/30 mb-2">Contenu *</label>
-              <textarea rows={5}
-                className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white placeholder-white/20 outline-none focus:border-white/30 transition-all resize-none"
-                placeholder="Bonjour {{first_name}},&#10;&#10;Votre message ici…"
-                value={body} onChange={e => setBody(e.target.value)} />
-              <p className="text-xs text-white/20 mt-1">Variables disponibles : {'{{first_name}}'} {'{{last_name}}'} {'{{email}}'}</p>
-            </div>
-            <div className="flex gap-3">
-              <button type="button" onClick={() => setShowForm(false)}
-                className="px-5 py-2.5 rounded-2xl bg-white/5 border border-white/10 text-white/60 font-bold hover:bg-white/10 text-sm">
-                Annuler
-              </button>
-              <button type="submit" disabled={creating}
-                className="flex items-center gap-2 bg-white text-black font-bold px-6 py-2.5 rounded-2xl hover:bg-white/90 transition-all disabled:opacity-60 text-sm">
-                {creating ? <><span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />Création…</> : <><Plus className="w-4 h-4" />Créer la campagne</>}
-              </button>
-            </div>
-          </form>
-        </div>
+      {editor && (
+        <EditorModal mode={editor.mode} camp={editor.camp} contacts={contacts} onClose={() => setEditor(null)} onSaved={upsertCamp} />
       )}
+      {preview && <PreviewModal c={preview} onClose={() => setPreview(null)} />}
 
-      {/* Liste des campagnes */}
-      {loading ? (
-        <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 text-white/20 animate-spin" /></div>
-      ) : campaigns.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 gap-3">
-          <Mail className="w-12 h-12 text-white/10" />
-          <p className="text-white/20 text-sm">Aucune campagne. Créez-en une ci-dessus.</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {campaigns.map(c => (
-            <div key={c.id} className="bg-white/5 border border-white/10 rounded-2xl p-5 flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 mb-1 flex-wrap">
-                  <p className="text-white font-bold text-sm">{c.name}</p>
-                  <span className={`text-xs font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full border ${statusColor[c.status]}`}>
-                    {statusLabel[c.status]}
-                  </span>
-                </div>
-                <p className="text-xs text-white/40 truncate">{c.subject}</p>
-                <p className="text-xs text-white/25 mt-0.5">
-                  {c.recipients} destinataire{c.recipients !== 1 ? 's' : ''}
-                  {c.sent_at && ` · Envoyée ${new Date(c.sent_at).toLocaleDateString('fr-FR')}`}
-                </p>
+      <div className="camp-panel" style={{ display: 'flex', flexDirection: 'column' as const, gap: 20 }}>
+
+        {/* Stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+          {[
+            { label: 'Total',       value: camps.length,   icon: Mail,        c: '#818cf8', bg: 'rgba(99,102,241,0.08)',  b: 'rgba(99,102,241,0.15)'  },
+            { label: 'Brouillons',  value: drafts.length,  icon: Pencil,      c: '#fbbf24', bg: 'rgba(245,158,11,0.08)',  b: 'rgba(245,158,11,0.15)'  },
+            { label: 'Envoyées',    value: sent.length,    icon: CheckCircle, c: '#34d399', bg: 'rgba(16,185,129,0.08)',  b: 'rgba(16,185,129,0.15)'  },
+          ].map(s => {
+            const Icon = s.icon;
+            return (
+              <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.b}`, borderRadius: 16, padding: '14px 16px' }}>
+                <Icon style={{ width: 16, height: 16, color: s.c, marginBottom: 8 }} />
+                <p style={{ fontSize: 24, fontWeight: 900, color: 'white', margin: '0 0 2px' }}>{s.value}</p>
+                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', margin: 0 }}>{s.label}</p>
               </div>
-              {c.status === 'draft' && (
-                <button
-                  onClick={() => sendCampaign(c.id)}
-                  disabled={sending === c.id}
-                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-4 py-2.5 rounded-xl transition-all text-sm disabled:opacity-60 flex-shrink-0"
-                >
-                  {sending === c.id
-                    ? <><Loader2 className="w-4 h-4 animate-spin" />Envoi…</>
-                    : <><Send className="w-4 h-4" />Envoyer via Brevo</>
-                  }
+            );
+          })}
+        </div>
+
+        {/* Toolbar */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' as const, gap: 12 }}>
+          {/* Tabs */}
+          <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 4 }}>
+            {([
+              { key: 'drafts', label: 'Brouillons', count: drafts.length },
+              { key: 'sent',   label: 'Envoyées',   count: sent.length   },
+            ] as const).map(t => {
+              const active = tab === t.key;
+              return (
+                <button key={t.key} onClick={() => setTab(t.key)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 10, border: 'none', background: active ? 'white' : 'transparent', color: active ? 'black' : 'rgba(255,255,255,0.3)', fontSize: 12, fontWeight: 800, cursor: 'pointer', transition: 'all 0.15s' }}>
+                  {t.label}
+                  {t.count > 0 && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 20, background: active ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)', color: active ? 'black' : 'rgba(255,255,255,0.3)' }}>{t.count}</span>}
+                </button>
+              );
+            })}
+          </div>
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={load} title="Actualiser" style={{ width: 36, height: 36, borderRadius: 11, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.25)', cursor: 'pointer' }}>
+              <RefreshCw style={{ width: 14, height: 14 }} />
+            </button>
+            <button onClick={() => setEditor({ mode: 'create' })} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', border: 'none', borderRadius: 12, padding: '0 18px', height: 36, color: 'black', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
+              <Plus style={{ width: 14, height: 14 }} /> Nouvelle campagne
+            </button>
+          </div>
+        </div>
+
+        {feedback && <p style={{ color: '#34d399', background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.15)', borderRadius: 12, padding: '10px 14px', fontSize: 12, margin: 0 }}>{feedback}</p>}
+        {errMsg   && <p style={{ color: '#f87171', background: 'rgba(239,68,68,0.06)',  border: '1px solid rgba(239,68,68,0.15)',  borderRadius: 12, padding: '10px 14px', fontSize: 12, margin: 0 }}>❌ {errMsg}</p>}
+
+        {/* Campaign list */}
+        <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 10 }}>
+          {(tab === 'drafts' ? drafts : sent).length === 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', padding: '48px 0', gap: 14 }}>
+              <div style={{ width: 52, height: 52, borderRadius: 18, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {tab === 'drafts' ? <Pencil style={{ width: 20, height: 20, color: 'rgba(255,255,255,0.1)' }} /> : <CheckCircle style={{ width: 20, height: 20, color: 'rgba(255,255,255,0.1)' }} />}
+              </div>
+              <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 13, margin: 0 }}>
+                {tab === 'drafts' ? 'Aucun brouillon — créez votre première campagne' : 'Aucune campagne envoyée'}
+              </p>
+              {tab === 'drafts' && (
+                <button onClick={() => setEditor({ mode: 'create' })} style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#818cf8', background: 'none', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  <Plus style={{ width: 14, height: 14 }} /> Créer une campagne
                 </button>
               )}
-              {c.status === 'sent' && (
-                <span className="flex items-center gap-1.5 text-xs text-emerald-400 font-bold flex-shrink-0">
-                  <CheckCircle className="w-4 h-4" /> Envoyée
-                </span>
-              )}
             </div>
+          ) : (tab === 'drafts' ? drafts : sent).map(c => (
+            <CampaignCard key={c.id} c={c}
+              onEdit={() => setEditor({ mode: 'edit', camp: c })}
+              onDelete={() => handleDelete(c.id)}
+              onSend={() => handleSend(c)}
+              onPreview={() => setPreview(c)}
+              sending={sending === c.id}
+            />
           ))}
         </div>
-      )}
-    </div>
+
+        {/* SQL hint */}
+        <details style={{ marginTop: 8 }}>
+          <summary style={{ fontSize: 11, color: 'rgba(99,102,241,0.5)', cursor: 'pointer', userSelect: 'none' as const }}>⚠️ Si les campagnes ne s'affichent pas — SQL requis</summary>
+          <pre style={{ marginTop: 10, fontSize: 10, color: 'rgba(99,102,241,0.55)', background: 'rgba(0,0,0,0.3)', borderRadius: 12, padding: '12px 16px', overflowX: 'auto' as const }}>{`CREATE TABLE IF NOT EXISTS public.email_campaigns (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL, subject TEXT NOT NULL, body TEXT,
+  status TEXT DEFAULT 'draft' CHECK (status IN ('draft','sent','scheduled')),
+  recipients INT DEFAULT 0, target_role TEXT DEFAULT 'all',
+  sent_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.email_campaigns ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "campaigns_admin" ON public.email_campaigns FOR ALL USING (public.is_admin());`}</pre>
+        </details>
+      </div>
+    </>
   );
 }
 
