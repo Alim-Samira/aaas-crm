@@ -405,7 +405,7 @@ function UserManagementPanel({
       });
       const json = await res.json();
       if (!res.ok) { setFormError(json.error ?? 'Erreur création'); setSaving(false); return; }
-      setFeedback(`    Compte créé : ${invEmail}`);
+      setFeedback(`✅ Compte créé : ${invEmail}`);
       setInvEmail(''); setInvName(''); setInvPwd(''); setShowForm(false);
       await load(); setTimeout(() => setFeedback(''), 3500);
     } catch (err: any) { setFormError(err.message ?? 'Erreur réseau'); }
@@ -1058,7 +1058,7 @@ function CampaignsPanel() {
       const res = await fetch('/api/brevo/campaign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ campaignId: c.id }) });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? 'Erreur envoi');
-      setFeedback(`    "${c.name}" envoyée à ${j.sent} destinataire${j.sent !== 1 ? 's' : ''} !`);
+      setFeedback(`✅ "${c.name}" envoyée à ${j.sent} destinataire${j.sent !== 1 ? 's' : ''} !`);
       setTab('sent');
       load();
     } catch (e: any) { setErrMsg(e.message); }
@@ -1246,16 +1246,26 @@ export default function SettingsPage() {
       if (err) {
         setLoadErr(`Erreur: ${err.message}`);
       } else if (!data) {
-        //  Auto-créer le profil s'il est absent
-        const { data: created } = await supabase.from('profiles').upsert({
-          id: user.id, email: user.email!, full_name: null, role: 'commercial',
-        }, { onConflict: 'id' }).select().maybeSingle();
+        // Profil absent côté client (RLS peut bloquer) — NE PAS écraser avec 'commercial'
+        // On réessaie via un INSERT minimal sans toucher au rôle
+        const { data: created, error: upsertErr } = await supabase
+          .from('profiles')
+          .upsert(
+            { id: user.id, email: user.email!, full_name: null },
+            { onConflict: 'id', ignoreDuplicates: true }
+          )
+          .select()
+          .maybeSingle();
         if (created) {
-          setProfile(created as Profile);
-          setFullName((created as Profile).full_name ?? '');
-          setIsAdmin(false);
+          const p2 = created as Profile;
+          setProfile(p2);
+          setFullName(p2.full_name ?? '');
+          const admin2 = p2.role === 'admin';
+          setIsAdmin(admin2);
+          setIsMaster(admin2 && p2.email === MASTER_ADMIN_EMAIL);
         } else {
-          setLoadErr('Profil introuvable. Reconnectez-vous.');
+          // Profil existe mais RLS bloque → forcer reload après login
+          setLoadErr('Session expirée — veuillez vous reconnecter.');
         }
       } else {
         const p = data as Profile;
