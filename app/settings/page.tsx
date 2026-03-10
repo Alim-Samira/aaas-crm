@@ -326,26 +326,46 @@ function PermissionsMatrix() {
 }
 
 /* ══════════════════════════════════════════════════════════════
-   USER MANAGEMENT — liste tous les profils (nom, id, rôle)
-   Changement de rôle → upsert DB via rpc update_user_role
+   USER MANAGEMENT — Master Admin RBAC
+   • Master Admin : voit tout, change tout, protège son propre rôle
+   • Sous-admin   : voit les non-admins, change rôles non-admin seulement
 ══════════════════════════════════════════════════════════════ */
-function UserManagementPanel() {
+
+const MASTER_ADMIN_EMAIL = 'alim.samira2002@gmail.com';
+const SUB_ADMIN_ASSIGNABLE_ROLES: AppRole[] = ['commercial', 'partner', 'user_standard'];
+
+function UserManagementPanel({
+  isMaster,
+  currentUserEmail,
+}: {
+  isMaster: boolean;
+  currentUserEmail: string;
+}) {
   const supabase = getSupabaseClient();
-  const [users,     setUsers]    = useState<Profile[]>([]);
-  const [loading,   setLoading]  = useState(true);
-  const [showForm,  setShowForm] = useState(false);
-  const [invEmail,  setInvEmail] = useState('');
-  const [invName,   setInvName]  = useState('');
-  const [invRole,   setInvRole]  = useState<AppRole>('commercial');
-  const [invPwd,    setInvPwd]   = useState('');
-  const [showPwd,   setShowPwd]  = useState(false);
-  const [saving,    setSaving]   = useState(false);
-  const [roleSaving,setRoleSaving] = useState<string | null>(null);
-  const [roleSaved, setRoleSaved]  = useState<string | null>(null);
-  const [feedback,  setFeedback] = useState('');
-  const [error,     setError]    = useState('');
-  const [search,    setSearch]   = useState('');
-  const [copied,    setCopied]   = useState<string | null>(null);
+  const [users,         setUsers]        = useState<Profile[]>([]);
+  const [loading,       setLoading]      = useState(true);
+  const [showForm,      setShowForm]     = useState(false);
+  const [invEmail,      setInvEmail]     = useState('');
+  const [invName,       setInvName]      = useState('');
+  const [invRole,       setInvRole]      = useState<AppRole>('commercial');
+  const [invPwd,        setInvPwd]       = useState('');
+  const [showPwd,       setShowPwd]      = useState(false);
+  const [saving,        setSaving]       = useState(false);
+  const [roleSaving,    setRoleSaving]   = useState<string | null>(null);
+  const [roleSaved,     setRoleSaved]    = useState<string | null>(null);
+  const [feedback,      setFeedback]     = useState('');
+  const [formError,     setFormError]    = useState('');
+  const [search,        setSearch]       = useState('');
+  const [copied,        setCopied]       = useState<string | null>(null);
+  const [approvePerms,  setApprovePerms] = useState<Record<string, boolean>>({});
+  const [approveSaving, setApproveSaving]= useState<string | null>(null);
+
+  const ROLE_COLORS: Record<string, { bg: string; border: string; text: string }> = {
+    admin:         { bg:'rgba(168,85,247,0.12)', border:'rgba(168,85,247,0.3)',  text:'#c084fc' },
+    user_standard: { bg:'rgba(245,158,11,0.10)', border:'rgba(245,158,11,0.25)', text:'#fbbf24' },
+    commercial:    { bg:'rgba(96,165,250,0.10)',  border:'rgba(96,165,250,0.25)', text:'#60a5fa' },
+    partner:       { bg:'rgba(45,212,191,0.10)',  border:'rgba(45,212,191,0.25)', text:'#2dd4bf' },
+  };
 
   useEffect(() => { load(); }, []);
 
@@ -354,232 +374,301 @@ function UserManagementPanel() {
     const { data } = await supabase
       .from('profiles')
       .select('id, email, full_name, role, avatar_url, created_at')
-      .order('created_at', { ascending: false });
-    if (data) setUsers(data as Profile[]);
+      .order('role', { ascending: true });  // admins first
+
+    if (data) {
+      setUsers(data as Profile[]);
+      const admins = (data as Profile[]).filter(u => u.role === 'admin' && u.email !== MASTER_ADMIN_EMAIL);
+      if (admins.length > 0 && isMaster) {
+        const { data: flags } = await supabase
+          .from('admin_permissions')
+          .select('user_id, can_approve_admin')
+          .in('user_id', admins.map(a => a.id));
+        const map: Record<string, boolean> = {};
+        (flags ?? []).forEach((f: any) => { map[f.user_id] = f.can_approve_admin; });
+        setApprovePerms(map);
+      }
+    }
     setLoading(false);
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!invEmail || !invPwd) return setError('Email et mot de passe requis.');
-    if (invPwd.length < 6)    return setError('Minimum 6 caractères.');
-    setSaving(true); setError(''); setFeedback('');
+    if (!invEmail || !invPwd) return setFormError('Email et mot de passe requis.');
+    if (invPwd.length < 6)    return setFormError('Minimum 6 caractères.');
+    if (!isMaster && invRole === 'admin') return setFormError('Seul le Master Admin peut créer des comptes Admin.');
+    setSaving(true); setFormError(''); setFeedback('');
     try {
       const res = await fetch('/api/admin/create-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: invEmail, password: invPwd, full_name: invName || null, role: invRole }),
       });
       const json = await res.json();
-      if (!res.ok) { setError(json.error ?? 'Erreur création'); setSaving(false); return; }
+      if (!res.ok) { setFormError(json.error ?? 'Erreur création'); setSaving(false); return; }
       setFeedback(`✅ Compte créé : ${invEmail}`);
-      setInvEmail(''); setInvName(''); setInvPwd('');
-      setShowForm(false);
-      await load();
-      setTimeout(() => setFeedback(''), 3500);
-    } catch (err: any) {
-      setError(err.message ?? 'Erreur réseau');
-    } finally { setSaving(false); }
+      setInvEmail(''); setInvName(''); setInvPwd(''); setShowForm(false);
+      await load(); setTimeout(() => setFeedback(''), 3500);
+    } catch (err: any) { setFormError(err.message ?? 'Erreur réseau'); }
+    finally { setSaving(false); }
   }
 
-  async function changeRole(userId: string, newRole: AppRole) {
-    setRoleSaving(userId); setRoleSaved(null);
-    const { error } = await supabase.rpc('update_user_role', { target_user_id: userId, new_role: newRole });
+  async function changeRole(u: Profile, newRole: AppRole) {
+    if (u.email === MASTER_ADMIN_EMAIL) return;
+    if (!isMaster && u.role === 'admin') return;
+    if (!isMaster && newRole === 'admin') return;
+    setRoleSaving(u.id); setRoleSaved(null);
+    const { error } = await supabase.rpc('update_user_role', { target_user_id: u.id, new_role: newRole });
     if (!error) {
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
-      setRoleSaved(userId);
-      setTimeout(() => setRoleSaved(null), 2000);
+      setUsers(prev => prev.map(p => p.id === u.id ? { ...p, role: newRole } : p));
+      setRoleSaved(u.id); setTimeout(() => setRoleSaved(null), 2000);
     }
     setRoleSaving(null);
   }
 
-  async function del(userId: string, email: string) {
-    if (!confirm(`Supprimer ${email} ?`)) return;
-    await supabase.from('profiles').delete().eq('id', userId);
-    setUsers(prev => prev.filter(u => u.id !== userId));
+  async function toggleApproveAdmin(userId: string, current: boolean) {
+    if (!isMaster) return;
+    setApproveSaving(userId);
+    await supabase.from('admin_permissions')
+      .upsert({ user_id: userId, can_approve_admin: !current }, { onConflict: 'user_id' });
+    setApprovePerms(prev => ({ ...prev, [userId]: !current }));
+    setApproveSaving(null);
+  }
+
+  async function del(u: Profile) {
+    if (u.email === MASTER_ADMIN_EMAIL) return;
+    if (!confirm(`Supprimer ${u.email} ?`)) return;
+    await supabase.from('profiles').delete().eq('id', u.id);
+    setUsers(prev => prev.filter(p => p.id !== u.id));
   }
 
   function copyId(id: string) {
-    navigator.clipboard.writeText(id).then(() => {
-      setCopied(id);
-      setTimeout(() => setCopied(null), 1500);
-    });
+    navigator.clipboard.writeText(id).then(() => { setCopied(id); setTimeout(() => setCopied(null), 1500); });
   }
 
-  const ROLE_COLORS: Record<AppRole, { bg:string; border:string; text:string }> = {
-    admin:         { bg:'rgba(168,85,247,0.1)',  border:'rgba(168,85,247,0.25)', text:'#c084fc' },
-    user_standard: { bg:'rgba(245,158,11,0.1)',  border:'rgba(245,158,11,0.25)', text:'#fbbf24' },
-    commercial:    { bg:'rgba(96,165,250,0.1)',   border:'rgba(96,165,250,0.25)',  text:'#60a5fa' },
-    partner:       { bg:'rgba(45,212,191,0.1)',   border:'rgba(45,212,191,0.25)',  text:'#2dd4bf' },
-  };
+  const visibleUsers  = users.filter(u => isMaster || u.email !== MASTER_ADMIN_EMAIL);
+  const filtered      = visibleUsers.filter(u => !search || u.full_name?.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()));
+  const masterUser    = filtered.find(u => u.email === MASTER_ADMIN_EMAIL);
+  const subAdmins     = filtered.filter(u => u.role === 'admin' && u.email !== MASTER_ADMIN_EMAIL);
+  const regularUsers  = filtered.filter(u => u.role !== 'admin');
+  const roleOptions   = isMaster
+    ? Object.entries(ROLE_CFG) as [AppRole, any][]
+    : (Object.entries(ROLE_CFG) as [AppRole, any][]).filter(([id]) => id !== 'admin');
 
-  const filtered = users.filter(u =>
-    !search ||
-    u.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-    u.email.toLowerCase().includes(search.toLowerCase())
-  );
+  function UserCard({ u }: { u: Profile }) {
+    const rc           = ROLE_COLORS[u.role] ?? ROLE_COLORS.commercial;
+    const isMasterUser = u.email === MASTER_ADMIN_EMAIL;
+    const isSubAdmin   = u.role === 'admin' && !isMasterUser;
+    const canEditRole  = !isMasterUser && (isMaster || (!isSubAdmin));
+    const initials     = u.full_name ? u.full_name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0,2) : u.email[0].toUpperCase();
+    const isRS         = roleSaving === u.id;
+    const isRSaved     = roleSaved  === u.id;
+    const canApprove   = approvePerms[u.id] ?? false;
+    const isAppSaving  = approveSaving === u.id;
 
-  return (
-    <div style={{ display:'flex', flexDirection:'column' as const, gap:16 }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}`}</style>
+    return (
+      <div style={{
+        background: isMasterUser ? 'rgba(168,85,247,0.07)' : isSubAdmin ? 'rgba(99,102,241,0.05)' : 'rgba(255,255,255,0.025)',
+        border: `1px solid ${isMasterUser ? 'rgba(168,85,247,0.3)' : isSubAdmin ? 'rgba(99,102,241,0.18)' : 'rgba(255,255,255,0.07)'}`,
+        borderRadius: 18, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' as const,
+      }}>
+        {/* Avatar */}
+        <div style={{
+          width: 46, height: 46, borderRadius: 14, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 15, fontWeight: 900, color: 'white',
+          background: isMasterUser ? 'linear-gradient(135deg,#7c3aed,#a855f7)' : isSubAdmin ? 'linear-gradient(135deg,#4f46e5,#6366f1)' : 'linear-gradient(135deg,#334155,#475569)',
+          boxShadow: isMasterUser ? '0 0 18px rgba(168,85,247,0.35)' : 'none',
+        }}>
+          {initials}
+        </div>
 
-      {/* Toolbar */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap' as const, gap:12 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          {/* Search */}
-          <div style={{ position:'relative' as const }}>
-            <input
-              value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Rechercher…"
-              style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:12, padding:'8px 14px 8px 34px', color:'white', fontSize:12, outline:'none', width:200 }}
-            />
-            <Users style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', width:13, height:13, color:'rgba(255,255,255,0.2)' }} />
+        {/* Info */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' as const, marginBottom: 2 }}>
+            <p style={{ color: 'white', fontWeight: 800, fontSize: 14, margin: 0 }}>
+              {u.full_name || <span style={{ color: 'rgba(255,255,255,0.3)', fontStyle: 'italic', fontWeight: 400 }}>Sans nom</span>}
+            </p>
+            {isMasterUser && (
+              <span style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: 1.5, padding: '2px 8px', borderRadius: 20, background: 'rgba(168,85,247,0.2)', border: '1px solid rgba(168,85,247,0.4)', color: '#d8b4fe' }}>
+                👑 MASTER ADMIN
+              </span>
+            )}
+            {isSubAdmin && (
+              <span style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: 1.5, padding: '2px 8px', borderRadius: 20, background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', color: '#818cf8' }}>
+                SOUS-ADMIN
+              </span>
+            )}
           </div>
-          <span style={{ fontSize:12, color:'rgba(255,255,255,0.25)' }}>
-            {filtered.length} utilisateur{filtered.length > 1 ? 's' : ''}
-          </span>
-          <button onClick={load} title="Actualiser" style={{ width:32, height:32, borderRadius:10, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'rgba(255,255,255,0.3)' }}>
-            <RefreshCw style={{ width:13, height:13 }} />
+          <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, margin: 0 }}>{u.email}</p>
+          <button onClick={() => copyId(u.id)} title="Copier l'ID" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 3, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <code style={{ fontSize: 9, color: copied === u.id ? '#34d399' : 'rgba(255,255,255,0.12)', fontFamily: 'monospace' }}>{u.id}</code>
+            {copied === u.id ? <CheckCircle style={{ width: 9, height: 9, color: '#34d399' }} /> : <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.15)' }}>⎘</span>}
           </button>
         </div>
-        <button onClick={() => setShowForm(!showForm)} style={{ display:'flex', alignItems:'center', gap:8, background:'white', border:'none', borderRadius:14, padding:'0 20px', height:36, color:'black', fontSize:12, fontWeight:800, cursor:'pointer' }}>
-          <UserPlus style={{ width:14, height:14 }} />
-          {showForm ? 'Annuler' : 'Créer un utilisateur'}
+
+        {/* can_approve_admin toggle — master only, sub-admins only */}
+        {isMaster && isSubAdmin && (
+          <div style={{ display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 5, flexShrink: 0 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: 1, color: 'rgba(255,255,255,0.25)', textAlign: 'center' as const }}>
+              Approuver<br/>admins
+            </span>
+            <button onClick={() => toggleApproveAdmin(u.id, canApprove)} disabled={!!isAppSaving}
+              style={{ width: 48, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', background: canApprove ? 'rgba(52,211,153,0.15)' : 'rgba(255,255,255,0.05)', position: 'relative' as const, transition: 'all 0.2s' }}>
+              {isAppSaving
+                ? <Loader2 style={{ width: 12, height: 12, color: 'rgba(255,255,255,0.4)', position: 'absolute', top: 7, left: 18, animation: 'spin 0.6s linear infinite' }} />
+                : <>
+                    <span style={{ position: 'absolute', inset: 3, borderRadius: 10, background: canApprove ? 'rgba(52,211,153,0.3)' : 'rgba(255,255,255,0.06)', transition: 'all 0.2s' }} />
+                    <span style={{ position: 'absolute', top: 4, left: canApprove ? 'calc(100% - 22px)' : 4, width: 18, height: 18, borderRadius: 9, background: canApprove ? '#34d399' : 'rgba(255,255,255,0.2)', transition: 'all 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.3)' }} />
+                  </>
+              }
+            </button>
+          </div>
+        )}
+
+        {/* Role selector / badge */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {canEditRole ? (
+            <div style={{ position: 'relative' as const }}>
+              <select value={u.role} onChange={e => changeRole(u, e.target.value as AppRole)} disabled={isRS}
+                style={{ background: rc.bg, border: `1px solid ${rc.border}`, borderRadius: 12, padding: '7px 30px 7px 12px', color: rc.text, fontSize: 11, fontWeight: 800, textTransform: 'uppercase' as const, letterSpacing: 1, outline: 'none', cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none', opacity: isRS ? 0.5 : 1, transition: 'all 0.2s' }}>
+                {(isMaster ? Object.entries(ROLE_CFG) : (Object.entries(ROLE_CFG) as [AppRole, any][]).filter(([id]) => SUB_ADMIN_ASSIGNABLE_ROLES.includes(id as AppRole))).map(([id, cfg]: any) =>
+                  <option key={id} value={id} style={{ background: '#0d1117', color: 'white' }}>{cfg.labelFr}</option>
+                )}
+              </select>
+              <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: rc.text, fontSize: 9 }}>▼</span>
+            </div>
+          ) : (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: rc.bg, border: `1px solid ${rc.border}`, borderRadius: 12, padding: '7px 14px', color: rc.text, fontSize: 11, fontWeight: 800, textTransform: 'uppercase' as const, letterSpacing: 1 }}>
+              {isMasterUser && '👑 '}{ROLE_CFG[u.role as AppRole]?.labelFr ?? u.role}
+            </span>
+          )}
+          {isRS     && <Loader2 style={{ width: 14, height: 14, color: 'rgba(99,102,241,0.6)', animation: 'spin 0.6s linear infinite', flexShrink: 0 }} />}
+          {isRSaved && <CheckCircle style={{ width: 14, height: 14, color: '#34d399', flexShrink: 0 }} />}
+        </div>
+
+        {/* Date */}
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', margin: 0 }}>Inscrit</p>
+          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', margin: 0 }}>
+            {new Date(u.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </p>
+        </div>
+
+        {/* Delete — never for master */}
+        {!isMasterUser && (
+          <button onClick={() => del(u)} title="Supprimer"
+            style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(239,68,68,0.4)', flexShrink: 0 }}>
+            <Trash2 style={{ width: 13, height: 13 }} />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 16 }}>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}`}</style>
+
+      {!isMaster && (
+        <div style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 14, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Shield style={{ width: 14, height: 14, color: '#818cf8', flexShrink: 0 }} />
+          <p style={{ fontSize: 11, color: 'rgba(199,210,254,0.6)', margin: 0 }}>
+            En tant que <strong>sous-admin</strong>, vous pouvez modifier les rôles des utilisateurs non-admin.
+            Seul le <strong style={{ color: '#c084fc' }}>Master Admin</strong> peut modifier un compte administrateur.
+          </p>
+        </div>
+      )}
+
+      {/* Toolbar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' as const, gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ position: 'relative' as const }}>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher…"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '8px 14px 8px 34px', color: 'white', fontSize: 12, outline: 'none', width: 200 }} />
+            <Users style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: 'rgba(255,255,255,0.2)' }} />
+          </div>
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>{filtered.length} utilisateur{filtered.length !== 1 ? 's' : ''}</span>
+          <button onClick={load} title="Actualiser" style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,0.3)' }}>
+            <RefreshCw style={{ width: 13, height: 13 }} />
+          </button>
+        </div>
+        <button onClick={() => setShowForm(!showForm)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', border: 'none', borderRadius: 14, padding: '0 20px', height: 36, color: 'black', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
+          <UserPlus style={{ width: 14, height: 14 }} />{showForm ? 'Annuler' : 'Créer un utilisateur'}
         </button>
       </div>
 
-      {feedback && <div style={{ background:'rgba(52,211,153,0.06)', border:'1px solid rgba(52,211,153,0.15)', borderRadius:12, padding:'10px 14px', fontSize:12, color:'#34d399' }}>{feedback}</div>}
+      {feedback && <div style={{ background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.15)', borderRadius: 12, padding: '10px 14px', fontSize: 12, color: '#34d399' }}>{feedback}</div>}
 
       {/* Create form */}
       {showForm && (
-        <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:20, padding:24, animation:'fadeIn 0.2s ease' }}>
-          <p style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:2, color:'rgba(255,255,255,0.3)', margin:'0 0 16px' }}>Nouveau compte</p>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
-            {[
-              { label:'Nom', value:invName, setter:setInvName, ph:'Jean Dupont', type:'text' },
-              { label:'Email *', value:invEmail, setter:setInvEmail, ph:'jean@exemple.com', type:'email' },
-            ].map(f => (
+        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 24, animation: 'fadeIn 0.2s ease' }}>
+          <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: 2, color: 'rgba(255,255,255,0.3)', margin: '0 0 16px' }}>Nouveau compte</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            {([{ label:'Nom', value:invName, setter:setInvName, ph:'Jean Dupont', type:'text' }, { label:'Email *', value:invEmail, setter:setInvEmail, ph:'jean@exemple.com', type:'email' }] as const).map((f: any) => (
               <div key={f.label}>
-                <label style={{ display:'block', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:2, color:'rgba(255,255,255,0.25)', marginBottom:6 }}>{f.label}</label>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: 2, color: 'rgba(255,255,255,0.25)', marginBottom: 6 }}>{f.label}</label>
                 <input type={f.type} value={f.value} onChange={e => f.setter(e.target.value)} placeholder={f.ph}
-                  style={{ width:'100%', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:12, padding:'10px 14px', color:'white', fontSize:13, outline:'none', boxSizing:'border-box' as const }} />
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '10px 14px', color: 'white', fontSize: 13, outline: 'none', boxSizing: 'border-box' as const }} />
               </div>
             ))}
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
             <div>
-              <label style={{ display:'block', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:2, color:'rgba(255,255,255,0.25)', marginBottom:6 }}>Rôle</label>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: 2, color: 'rgba(255,255,255,0.25)', marginBottom: 6 }}>Rôle</label>
               <select value={invRole} onChange={e => setInvRole(e.target.value as AppRole)}
-                style={{ width:'100%', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:12, padding:'10px 14px', color:'white', fontSize:13, outline:'none', cursor:'pointer' }}>
-                {(Object.entries(ROLE_CFG) as [AppRole, any][]).map(([id, cfg]) =>
-                  <option key={id} value={id} style={{ background:'#0d1117' }}>{cfg.labelFr}</option>
-                )}
+                style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '10px 14px', color: 'white', fontSize: 13, outline: 'none', cursor: 'pointer' }}>
+                {roleOptions.map(([id, cfg]: any) => <option key={id} value={id} style={{ background: '#0d1117' }}>{cfg.labelFr}</option>)}
               </select>
             </div>
-            <div style={{ position:'relative' as const }}>
-              <label style={{ display:'block', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:2, color:'rgba(255,255,255,0.25)', marginBottom:6 }}>Mot de passe *</label>
+            <div style={{ position: 'relative' as const }}>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: 2, color: 'rgba(255,255,255,0.25)', marginBottom: 6 }}>Mot de passe *</label>
               <input type={showPwd ? 'text' : 'password'} value={invPwd} onChange={e => setInvPwd(e.target.value)} placeholder="Min. 6 caractères"
-                style={{ width:'100%', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:12, padding:'10px 40px 10px 14px', color:'white', fontSize:13, outline:'none', boxSizing:'border-box' as const }} />
-              <button type="button" onClick={() => setShowPwd(!showPwd)} style={{ position:'absolute', right:12, top:34, background:'none', border:'none', color:'rgba(255,255,255,0.3)', cursor:'pointer' }}>
-                {showPwd ? <EyeOff style={{ width:14, height:14 }} /> : <Eye style={{ width:14, height:14 }} />}
+                style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '10px 40px 10px 14px', color: 'white', fontSize: 13, outline: 'none', boxSizing: 'border-box' as const }} />
+              <button type="button" onClick={() => setShowPwd(!showPwd)} style={{ position: 'absolute', right: 12, top: 34, background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer' }}>
+                {showPwd ? <EyeOff style={{ width: 14, height: 14 }} /> : <Eye style={{ width: 14, height: 14 }} />}
               </button>
             </div>
           </div>
-          {error && <div style={{ background:'rgba(239,68,68,0.06)', border:'1px solid rgba(239,68,68,0.15)', borderRadius:10, padding:'8px 14px', fontSize:12, color:'#f87171', marginBottom:12 }}>{error}</div>}
-          <button onClick={handleCreate as any} disabled={saving} style={{ display:'flex', alignItems:'center', gap:8, background:'white', border:'none', borderRadius:12, padding:'10px 22px', color:'black', fontSize:12, fontWeight:800, cursor:'pointer', opacity:saving ? 0.6 : 1 }}>
-            {saving ? <><Loader2 style={{ width:13, height:13, animation:'spin 0.6s linear infinite' }} />Création…</> : <><UserPlus style={{ width:13, height:13 }} />Créer le compte</>}
+          {formError && <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 10, padding: '8px 14px', fontSize: 12, color: '#f87171', marginBottom: 12 }}>{formError}</div>}
+          <button onClick={handleCreate as any} disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', border: 'none', borderRadius: 12, padding: '10px 22px', color: 'black', fontSize: 12, fontWeight: 800, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
+            {saving ? <><Loader2 style={{ width: 13, height: 13, animation: 'spin 0.6s linear infinite' }} />Création…</> : <><UserPlus style={{ width: 13, height: 13 }} />Créer le compte</>}
           </button>
         </div>
       )}
 
       {/* Users list */}
       {loading ? (
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', padding:'40px 0', gap:10, color:'rgba(99,102,241,0.6)' }}>
-          <Loader2 style={{ width:18, height:18, animation:'spin 0.6s linear infinite' }} />
-          <span style={{ fontSize:13 }}>Chargement des utilisateurs…</span>
-        </div>
-      ) : filtered.length === 0 ? (
-        <div style={{ textAlign:'center', padding:'40px 0', color:'rgba(255,255,255,0.2)', fontSize:13 }}>
-          {search ? 'Aucun résultat pour cette recherche.' : 'Aucun utilisateur trouvé. Actualisez ↑'}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 0', gap: 10, color: 'rgba(99,102,241,0.6)' }}>
+          <Loader2 style={{ width: 18, height: 18, animation: 'spin 0.6s linear infinite' }} />
+          <span style={{ fontSize: 13 }}>Chargement des utilisateurs…</span>
         </div>
       ) : (
-        <div style={{ display:'flex', flexDirection:'column' as const, gap:8 }}>
-          {filtered.map(u => {
-            const rc = ROLE_COLORS[u.role as AppRole] ?? ROLE_COLORS.commercial;
-            const initials = u.full_name ? u.full_name.split(' ').map((w:string) => w[0]).join('').toUpperCase().slice(0,2) : u.email[0].toUpperCase();
-            const isRoleSaving = roleSaving === u.id;
-            const isRoleSaved  = roleSaved  === u.id;
-            return (
-              <div key={u.id} style={{ background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:18, padding:'16px 20px', display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' as const }}>
-
-                {/* Avatar */}
-                <div style={{ width:44, height:44, borderRadius:14, background:'linear-gradient(135deg,#6366f1,#8b5cf6)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:15, fontWeight:900, color:'white', flexShrink:0 }}>
-                  {initials}
-                </div>
-
-                {/* Info */}
-                <div style={{ flex:1, minWidth:0 }}>
-                  <p style={{ color:'white', fontWeight:800, fontSize:14, margin:'0 0 2px' }}>
-                    {u.full_name ?? <span style={{ color:'rgba(255,255,255,0.3)', fontStyle:'italic' }}>Sans nom</span>}
-                  </p>
-                  <p style={{ color:'rgba(255,255,255,0.35)', fontSize:12, margin:0 }}>{u.email}</p>
-                  {/* ID with copy */}
-                  <button
-                    onClick={() => copyId(u.id)}
-                    title="Copier l'ID"
-                    style={{ display:'inline-flex', alignItems:'center', gap:5, marginTop:4, background:'none', border:'none', cursor:'pointer', padding:0 }}>
-                    <code style={{ fontSize:9, color: copied === u.id ? '#34d399' : 'rgba(255,255,255,0.15)', fontFamily:'monospace', letterSpacing:0.5 }}>
-                      {u.id}
-                    </code>
-                    {copied === u.id
-                      ? <CheckCircle style={{ width:10, height:10, color:'#34d399' }} />
-                      : <span style={{ fontSize:9, color:'rgba(255,255,255,0.15)' }}>⎘</span>
-                    }
-                  </button>
-                </div>
-
-                {/* Role selector */}
-                <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-                  <div style={{ position:'relative' as const }}>
-                    <select
-                      value={u.role}
-                      onChange={e => changeRole(u.id, e.target.value as AppRole)}
-                      disabled={isRoleSaving}
-                      style={{
-                        background: rc.bg, border:`1px solid ${rc.border}`, borderRadius:12,
-                        padding:'7px 30px 7px 12px', color: rc.text, fontSize:11, fontWeight:800,
-                        textTransform:'uppercase', letterSpacing:1, outline:'none', cursor:'pointer',
-                        appearance:'none', WebkitAppearance:'none',
-                        opacity: isRoleSaving ? 0.5 : 1, transition:'all 0.2s',
-                      }}>
-                      {(Object.entries(ROLE_CFG) as [AppRole, any][]).map(([id, cfg]) =>
-                        <option key={id} value={id} style={{ background:'#0d1117', color:'white' }}>{cfg.labelFr}</option>
-                      )}
-                    </select>
-                    <span style={{ position:'absolute', right:8, top:'50%', transform:'translateY(-50%)', pointerEvents:'none', color: rc.text, fontSize:9 }}>▼</span>
-                  </div>
-
-                  {/* Save indicator */}
-                  {isRoleSaving && <Loader2 style={{ width:14, height:14, color:'rgba(99,102,241,0.6)', animation:'spin 0.6s linear infinite', flexShrink:0 }} />}
-                  {isRoleSaved  && <CheckCircle style={{ width:14, height:14, color:'#34d399', flexShrink:0 }} />}
-                </div>
-
-                {/* Joined date */}
-                <div style={{ textAlign:'right', flexShrink:0 }}>
-                  <p style={{ fontSize:10, color:'rgba(255,255,255,0.2)', margin:0 }}>Inscrit</p>
-                  <p style={{ fontSize:11, color:'rgba(255,255,255,0.4)', margin:0 }}>
-                    {new Date(u.created_at).toLocaleDateString('fr-FR', { day:'numeric', month:'short', year:'numeric' })}
-                  </p>
-                </div>
-
-                {/* Delete */}
-                <button onClick={() => del(u.id, u.email)} title="Supprimer"
-                  style={{ width:32, height:32, borderRadius:10, background:'rgba(239,68,68,0.05)', border:'1px solid rgba(239,68,68,0.1)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'rgba(239,68,68,0.4)', flexShrink:0, transition:'all 0.15s' }}>
-                  <Trash2 style={{ width:13, height:13 }} />
-                </button>
+        <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 20 }}>
+          {isMaster && masterUser && (
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: 2, color: 'rgba(168,85,247,0.6)', margin: '0 0 8px' }}>👑 Master Admin</p>
+              <UserCard u={masterUser} />
+            </div>
+          )}
+          {subAdmins.length > 0 && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 8px' }}>
+                <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: 2, color: 'rgba(99,102,241,0.6)', margin: 0 }}>Sous-administrateurs ({subAdmins.length})</p>
+                {isMaster && <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' }}>Activez "Approuver admins" pour déléguer la validation des comptes admin</span>}
               </div>
-            );
-          })}
+              <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
+                {subAdmins.map(u => <UserCard key={u.id} u={u} />)}
+              </div>
+            </div>
+          )}
+          {regularUsers.length > 0 && (
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: 2, color: 'rgba(255,255,255,0.25)', margin: '0 0 8px' }}>Utilisateurs ({regularUsers.length})</p>
+              <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
+                {regularUsers.map(u => <UserCard key={u.id} u={u} />)}
+              </div>
+            </div>
+          )}
+          {filtered.length === 0 && <p style={{ textAlign: 'center', padding: '32px 0', color: 'rgba(255,255,255,0.2)', fontSize: 13 }}>Aucun utilisateur trouvé.</p>}
         </div>
       )}
     </div>
@@ -1134,6 +1223,7 @@ export default function SettingsPage() {
   const supabase = getSupabaseClient();
   const [profile,      setProfile]      = useState<Profile | null>(null);
   const [isAdmin,      setIsAdmin]      = useState(false);
+  const [isMaster,     setIsMaster]     = useState(false);
   const [loading,      setLoading]      = useState(true);
   const [fullName,     setFullName]     = useState('');
   const [saving,       setSaving]       = useState(false);
@@ -1175,6 +1265,8 @@ export default function SettingsPage() {
         //  FIX : lire isAdmin depuis p.role directement (pas rpc qui peut échouer)
         const admin = p.role === 'admin';
         setIsAdmin(admin);
+        const master = admin && p.email === MASTER_ADMIN_EMAIL;
+        setIsMaster(master);
 
         if (admin) {
           const { count } = await supabase
@@ -1279,7 +1371,7 @@ export default function SettingsPage() {
       )}
 
       {tab === 'requests'    && isAdmin && <div className="bg-white/5 border border-white/10 backdrop-blur-xl rounded-[2rem] p-8"><div className="flex items-center gap-4 mb-6"><div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/20 flex items-center justify-center"><Clock className="w-5 h-5 text-amber-400" /></div><div><h2 className="text-lg font-bold text-white">Demandes d'accès</h2><p className="text-sm text-white/30">Approuver les nouveaux comptes Admin</p></div></div><AccessRequestsPanel /></div>}
-      {tab === 'users'       && isAdmin && <div className="bg-white/5 border border-white/10 backdrop-blur-xl rounded-[2rem] p-8"><div className="flex items-center gap-4 mb-8"><div className="w-10 h-10 rounded-2xl bg-purple-500/15 border border-purple-500/20 flex items-center justify-center"><Users className="w-5 h-5 text-purple-400" /></div><div><h2 className="text-lg font-bold text-white">Gestion des Utilisateurs</h2><p className="text-sm text-white/30">Créer des comptes et modifier les rôles</p></div></div><UserManagementPanel /></div>}
+      {tab === 'users'       && isAdmin && <div className="bg-white/5 border border-white/10 backdrop-blur-xl rounded-[2rem] p-8"><div className="flex items-center gap-4 mb-8"><div className="w-10 h-10 rounded-2xl bg-purple-500/15 border border-purple-500/20 flex items-center justify-center"><Users className="w-5 h-5 text-purple-400" /></div><div><h2 className="text-lg font-bold text-white">Gestion des Utilisateurs</h2><p className="text-sm text-white/30">{isMaster ? '👑 Master Admin — vue complète' : 'Sous-admin — utilisateurs non-admin'}</p></div></div><UserManagementPanel isMaster={isMaster} currentUserEmail={profile?.email ?? ''} /></div>}
       {tab === 'campaigns'   && isAdmin && <div className="bg-white/5 border border-white/10 backdrop-blur-xl rounded-[2rem] p-8"><div className="flex items-center gap-4 mb-8"><div className="w-10 h-10 rounded-2xl bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center"><Mail className="w-5 h-5 text-indigo-400" /></div><div><h2 className="text-lg font-bold text-white">Campagnes Email</h2><p className="text-sm text-white/30">Automatisation emailing via Brevo · Communication digitale</p></div></div><CampaignsPanel /></div>}
       {tab === 'permissions' && isAdmin && <div className="bg-white/5 border border-white/10 backdrop-blur-xl rounded-[2rem] p-8"><div className="flex items-center gap-4 mb-8"><div className="w-10 h-10 rounded-2xl bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center"><Shield className="w-5 h-5 text-indigo-400" /></div><div><h2 className="text-lg font-bold text-white">Permissions par module</h2><p className="text-sm text-white/30">Admin · User Standard · Commercial · Partenaire</p></div></div><PermissionsMatrix /></div>}
     </div>
