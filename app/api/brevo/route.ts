@@ -1,88 +1,228 @@
-// app/api/brevo/route.ts
-//    FIX : await createServerSupabaseClient() — sans await = crash TypeScript
+// app/api/brevo/campaign/route.ts
+// ✅ FIX envoi : logs détaillés + test endpoint GET ?test=1
+// ✅ Fallback : si aucun contact, envoie à l'admin lui-même
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
+// ─────────────────────────────────────────────────────────────────
+// GET /api/brevo/campaign?test=1
+// Envoie un email de test à l'admin → vérifie que Brevo fonctionne
+// Ouvrez cette URL dans le navigateur après connexion
+// ─────────────────────────────────────────────────────────────────
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  if (searchParams.get('test') !== '1')
+    return NextResponse.json({ info: 'Ajoute ?test=1 pour lancer le test Brevo' });
+
+  const BREVO_API_KEY = process.env.BREVO_API_KEY;
+  const SENDER_EMAIL  = process.env.BREVO_SENDER_EMAIL;
+  const SENDER_NAME   = process.env.BREVO_SENDER_NAME ?? 'AAAS CRM';
+
+  // Vérifications env vars
+  const missing = [];
+  if (!BREVO_API_KEY) missing.push('BREVO_API_KEY');
+  if (!SENDER_EMAIL)  missing.push('BREVO_SENDER_EMAIL');
+  if (missing.length > 0)
+    return NextResponse.json({ error: `Variables manquantes dans Vercel : ${missing.join(', ')}` }, { status: 500 });
+
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.email) return NextResponse.json({ error: 'Non connecté — connecte-toi d\'abord' }, { status: 401 });
+
+  // Test d'envoi
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'api-key': BREVO_API_KEY! },
+    body: JSON.stringify({
+      sender:      { name: SENDER_NAME, email: SENDER_EMAIL },
+      to:          [{ email: user.email, name: 'Admin Test' }],
+      subject:     '✅ Test Brevo AAAS CRM — ça marche !',
+      htmlContent: `<div style="font-family:sans-serif;padding:32px;background:#0f1629;color:#e2e8f0;border-radius:16px;max-width:500px;margin:auto;">
+        <div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;color:white;font-weight:900;font-style:italic;margin-bottom:20px;">A</div>
+        <h2 style="color:#a5b4fc;margin:0 0 12px;">✅ Brevo fonctionne parfaitement</h2>
+        <p style="color:#94a3b8;line-height:1.7;">Votre configuration Brevo est correcte. Les campagnes email AAAS CRM vont bien arriver dans les boîtes mail.</p>
+        <div style="background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);border-radius:12px;padding:16px;margin-top:20px;">
+          <p style="color:#c7d2fe;font-size:13px;margin:0;"><strong>Expéditeur :</strong> ${SENDER_EMAIL}</p>
+          <p style="color:#c7d2fe;font-size:13px;margin:8px 0 0;"><strong>Destinataire :</strong> ${user.email}</p>
+        </div>
+      </div>`,
+    }),
+  });
+
+  const json = await res.json();
+
+  if (!res.ok) {
+    return NextResponse.json({
+      error: '❌ Brevo a refusé l\'email',
+      brevo_message: json.message,
+      brevo_code: json.code,
+      sender_used: SENDER_EMAIL,
+      recipient: user.email,
+      hint: json.message?.includes('sender')
+        ? '⚠️ L\'adresse expéditeur n\'est pas vérifiée dans Brevo. Va sur app.brevo.com → Senders & IP → Add a sender'
+        : 'Vérifiez votre clé API Brevo dans Vercel env vars',
+    }, { status: 400 });
+  }
+
+  return NextResponse.json({
+    success: true,
+    message: '✅ Email de test envoyé !',
+    messageId: json.messageId,
+    to: user.email,
+    sender: SENDER_EMAIL,
+    hint: `Vérifiez la boîte de ${user.email} (et les spams)`,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// POST /api/brevo/campaign
+// Envoie la campagne à tous les destinataires
+// ─────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    //    await obligatoire — la fonction est async
+    const body = await req.json().catch(() => ({}));
+    const { campaignId } = body;
+    if (!campaignId) return NextResponse.json({ error: 'campaignId requis' }, { status: 400 });
+
     const supabase = await createServerSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { data: profile } = await supabase
+      .from('profiles').select('role').eq('id', user.id).maybeSingle();
+    if (profile?.role !== 'admin')
+      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
 
-    const body = await req.json();
-    const { leadId, leadTitle, recipientEmail, recipientName } = body;
+    const { data: campaign, error: campErr } = await supabase
+      .from('email_campaigns').select('*').eq('id', campaignId).single();
+    if (campErr || !campaign)
+      return NextResponse.json({ error: 'Campagne introuvable' }, { status: 404 });
 
     const BREVO_API_KEY = process.env.BREVO_API_KEY;
-    const SENDER_EMAIL  = process.env.BREVO_SENDER_EMAIL ?? 'noreply@aaas-crm.fr';
-    const SENDER_NAME   = process.env.BREVO_SENDER_NAME  ?? 'AAAS CRM';
+    const SENDER_EMAIL  = process.env.BREVO_SENDER_EMAIL;
+    const SENDER_NAME   = process.env.BREVO_SENDER_NAME ?? 'AAAS CRM';
 
-    if (!BREVO_API_KEY) {
-      return NextResponse.json({ error: 'BREVO_API_KEY manquante dans Vercel env vars' }, { status: 500 });
+    const missing = [];
+    if (!BREVO_API_KEY) missing.push('BREVO_API_KEY');
+    if (!SENDER_EMAIL)  missing.push('BREVO_SENDER_EMAIL');
+    if (missing.length > 0)
+      return NextResponse.json({ error: `Variables Vercel manquantes : ${missing.join(', ')}` }, { status: 500 });
+
+    // ── Résolution destinataires ──────────────────────────────────
+    const { data: allContacts } = await supabase
+      .from('contacts')
+      .select('email, first_name, last_name')
+      .not('email', 'is', null)
+      .neq('email', '');
+
+    let recipients: { email: string; first_name: string; last_name: string }[] =
+      (allContacts ?? []) as any[];
+
+    if (campaign.target_role && campaign.target_role !== 'all') {
+      const { data: matchingProfiles } = await supabase
+        .from('profiles').select('email').eq('role', campaign.target_role).not('email', 'is', null);
+      const roleEmails = new Set((matchingProfiles ?? []).map((p: any) => p.email?.toLowerCase()));
+      const filtered = recipients.filter(r => r.email && roleEmails.has(r.email.toLowerCase()));
+      if (filtered.length > 0) recipients = filtered;
     }
 
-    const toEmail = recipientEmail ?? user.email!;
-    const toName  = recipientName  ?? toEmail;
+    // Fallback : si aucun contact, envoyer à l'admin lui-même
+    if (recipients.length === 0) {
+      const { data: adminProfile } = await supabase
+        .from('profiles').select('email, full_name').eq('id', user.id).maybeSingle();
+      if (adminProfile?.email) {
+        recipients = [{
+          email:      adminProfile.email,
+          first_name: adminProfile.full_name?.split(' ')[0] ?? 'Admin',
+          last_name:  adminProfile.full_name?.split(' ').slice(1).join(' ') ?? '',
+        }];
+        console.log('[brevo] Aucun contact trouvé — envoi à l\'admin:', adminProfile.email);
+      } else {
+        return NextResponse.json({
+          error: 'Aucun destinataire. Ajoutez des contacts avec emails dans la section Contacts.',
+        }, { status: 400 });
+      }
+    }
 
-    const htmlContent = `
-      <div style="font-family:sans-serif;max-width:600px;margin:auto;padding:32px;background:#0f1629;color:#e2e8f0;border-radius:16px;">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
-          <div style="width:40px;height:40px;background:#6366f1;border-radius:10px;display:flex;align-items:center;justify-content:center;">
-            <span style="color:white;font-weight:900;font-style:italic;font-size:18px;">A</span>
-          </div>
-          <span style="color:white;font-weight:900;font-size:20px;letter-spacing:-0.5px;">AAAS CRM</span>
-        </div>
-        <h2 style="color:white;font-size:22px;margin:0 0 8px;">Nouveau lead créé</h2>
-        <p style="color:#94a3b8;margin:0 0 24px;">Un nouveau lead a été ajouté à votre pipeline.</p>
-        <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:20px;margin-bottom:24px;">
-          <p style="color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:2px;margin:0 0 8px;">Lead</p>
-          <p style="color:white;font-weight:700;font-size:18px;margin:0 0 4px;">${leadTitle ?? 'Nouveau lead'}</p>
-          <p style="color:#64748b;font-size:13px;margin:0;">ID : ${leadId ?? 'N/A'}</p>
-        </div>
-        <a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'https://votre-crm.vercel.app'}/pipeline"
-           style="display:inline-block;background:#6366f1;color:white;font-weight:700;padding:12px 24px;border-radius:10px;text-decoration:none;font-size:14px;">
-          Voir dans le pipeline →
-        </a>
-        <p style="color:#334155;font-size:12px;margin-top:32px;border-top:1px solid #1e293b;padding-top:16px;">
-          AAAS CRM · Automatisation digitale · Envoyé via Brevo
-        </p>
-      </div>
-    `;
+    let sent = 0;
+    const errors: string[] = [];
 
-    const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: {
-        'Accept':       'application/json',
-        'Content-Type': 'application/json',
-        'api-key':      BREVO_API_KEY,
-      },
-      body: JSON.stringify({
-        sender:      { name: SENDER_NAME, email: SENDER_EMAIL },
-        to:          [{ email: toEmail, name: toName }],
-        subject:     `Nouveau lead : ${leadTitle ?? 'Sans titre'}`,
-        htmlContent,
-      }),
+    for (const recipient of recipients) {
+      const personalizedBody = (campaign.body ?? '')
+        .replace(/\{\{first_name\}\}/g, recipient.first_name ?? '')
+        .replace(/\{\{last_name\}\}/g,  recipient.last_name  ?? '')
+        .replace(/\{\{email\}\}/g,      recipient.email      ?? '');
+
+      const htmlContent = `<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#080d1a;">
+<div style="max-width:600px;margin:0 auto;padding:32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <div style="background:linear-gradient(135deg,#1e1b4b,#2e1065,#1e1b4b);border-radius:20px 20px 0 0;padding:28px 32px;border:1px solid rgba(99,102,241,0.3);border-bottom:none;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div style="width:44px;height:44px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:14px;text-align:center;line-height:44px;font-size:20px;color:white;font-weight:900;font-style:italic;">A</div>
+      <div style="color:white;font-weight:900;font-size:18px;letter-spacing:-0.5px;">AAAS CRM</div>
+    </div>
+  </div>
+  <div style="background:#0f172a;padding:32px;border-left:1px solid rgba(99,102,241,0.15);border-right:1px solid rgba(99,102,241,0.15);">
+    <h2 style="margin:0 0 20px;font-size:22px;font-weight:800;color:#c7d2fe;line-height:1.3;">${campaign.subject}</h2>
+    <div style="color:#94a3b8;line-height:1.85;font-size:14px;white-space:pre-line;">${personalizedBody}</div>
+  </div>
+  <div style="background:#080d1a;padding:16px 32px;border-radius:0 0 20px 20px;border:1px solid rgba(99,102,241,0.1);border-top:1px solid rgba(99,102,241,0.1);">
+    <span style="color:#334155;font-size:11px;">AAAS CRM · Automatisation digitale · Envoyé via Brevo</span>
+  </div>
+</div>
+</body>
+</html>`;
+
+      try {
+        const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'Accept':       'application/json',
+            'Content-Type': 'application/json',
+            'api-key':      BREVO_API_KEY!,
+          },
+          body: JSON.stringify({
+            sender:      { name: SENDER_NAME, email: SENDER_EMAIL },
+            to:          [{ email: recipient.email, name: `${recipient.first_name ?? ''} ${recipient.last_name ?? ''}`.trim() || recipient.email }],
+            subject:     campaign.subject,
+            htmlContent,
+          }),
+        });
+
+        const json = await res.json();
+        if (res.ok) {
+          sent++;
+          console.log(`[brevo] ✅ ${recipient.email} — messageId: ${json.messageId}`);
+        } else {
+          const errMsg = `${recipient.email}: ${json.message ?? res.status}`;
+          errors.push(errMsg);
+          console.error(`[brevo] ❌ ${errMsg}`);
+        }
+      } catch (e: any) {
+        errors.push(`${recipient.email}: ${e.message}`);
+      }
+    }
+
+    // Mettre à jour la campagne
+    await supabase.from('email_campaigns').update({
+      status:     'sent',
+      sent_at:    new Date().toISOString(),
+      recipients: sent,
+    }).eq('id', campaignId);
+
+    return NextResponse.json({
+      success: true,
+      sent,
+      total: recipients.length,
+      errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
     });
 
-    const brevoData = await brevoRes.json();
-
-    if (!brevoRes.ok) {
-      console.error('Brevo error:', brevoData);
-      return NextResponse.json(
-        { error: brevoData.message ?? 'Erreur Brevo' },
-        { status: brevoRes.status }
-      );
-    }
-
-    return NextResponse.json({ success: true, messageId: brevoData.messageId });
-
   } catch (err: any) {
-    console.error('Brevo route error:', err);
+    console.error('[campaign route error]', err);
     return NextResponse.json({ error: err.message ?? 'Erreur serveur' }, { status: 500 });
   }
 }
