@@ -1,20 +1,22 @@
 // app/pipeline/page.tsx
-// FIXES: leads_assigned_to_fkey | 409 Conflict | 403 on profile upsert
-// Requires patch_v1.2.sql to be run in Supabase first.
-// app/pipeline/page.tsx
-//  FIX multi-click: disabled + loading state sur login
-//  NOUVEAU: bouton Modifier sur chaque lead (crayon)
-//  FIX commercial: assigned_to = user.id à la création
+//     FIX multi-click: disabled + loading state sur login
+//     NOUVEAU: bouton Modifier sur chaque lead (crayon)
+//     FIX commercial: assigned_to = user.id à la création
 'use client';
+export const dynamic = 'force-dynamic';
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
-import { Plus, GripVertical, DollarSign, X, AlertCircle, User, Pencil, Trash2, Check } from 'lucide-react';
+import { Plus, GripVertical, DollarSign, X, AlertCircle, User, Pencil, Trash2, Check, UserPlus } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/utils';
 import { PageLoader } from '@/components/LoadingScreen';
 import type { Lead, LeadStatus, Contact } from '@/types';
+
+interface UserProfile {
+  id: string; full_name: string | null; email: string; role: string;
+}
 
 const COLUMNS: { id: LeadStatus; label: string; accent: string; dot: string }[] = [
   { id: 'new',         label: 'Nouveaux',  accent: 'border-t-cyan-500/70',    dot: 'bg-cyan-400'    },
@@ -51,7 +53,7 @@ function LeadCard({ lead, index, onEdit, onDelete }: {
               {lead.title}
             </p>
             <div className="flex items-center gap-1 flex-shrink-0">
-              {/*  Bouton Modifier */}
+              {/*     Bouton Modifier */}
               <button
                 onClick={e => { e.stopPropagation(); onEdit(lead); }}
                 className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-white/10 hover:bg-indigo-500/30
@@ -61,7 +63,7 @@ function LeadCard({ lead, index, onEdit, onDelete }: {
               >
                 <Pencil className="w-3 h-3" />
               </button>
-              {/*  Bouton Supprimer */}
+              {/*     Bouton Supprimer */}
               <button
                 onClick={e => { e.stopPropagation(); onDelete(lead.id); }}
                 className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-white/10 hover:bg-rose-500/30
@@ -103,7 +105,7 @@ function LeadCard({ lead, index, onEdit, onDelete }: {
 
 // ── Modal Créer / Modifier lead ──────────────────────────────────
 function LeadModal({
-  mode, lead, defaultStatus, contacts, currentUserId,
+  mode, lead, defaultStatus, contacts, currentUserId, users, isAdmin,
   onClose, onSaved,
 }: {
   mode: 'create' | 'edit';
@@ -111,6 +113,8 @@ function LeadModal({
   defaultStatus: LeadStatus;
   contacts: Contact[];
   currentUserId: string;
+  users: UserProfile[];
+  isAdmin: boolean;
   onClose: () => void;
   onSaved: (l: Lead) => void;
 }) {
@@ -120,6 +124,7 @@ function LeadModal({
   const [status,    setStatus]    = useState<LeadStatus>(lead?.status ?? defaultStatus);
   const [contactId, setContactId] = useState(lead?.contact_id ?? '');
   const [notes,     setNotes]     = useState(lead?.notes ?? '');
+  const [assignedTo, setAssignedTo] = useState<string>(lead?.assigned_to ?? currentUserId);
   const [saving,    setSaving]    = useState(false);
   const [error,     setError]     = useState('');
 
@@ -134,6 +139,7 @@ function LeadModal({
         status,
         contact_id: contactId || null,
         notes:      notes || null,
+        assigned_to: assignedTo || currentUserId,
       };
 
       let data: Lead | null = null;
@@ -223,14 +229,23 @@ function LeadModal({
             </select>
           </div>
           <div>
+            <label className="block text-xs font-bold uppercase tracking-widest text-white/30 mb-2">
+              <UserPlus className="w-3 h-3 inline mr-1"/>Assigner à
+            </label>
+            <select className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white outline-none"
+              value={assignedTo} onChange={e=>setAssignedTo(e.target.value)}>
+              {users.map(u=>(
+                <option key={u.id} value={u.id} className="bg-slate-900">
+                  {u.full_name||u.email}{u.id===currentUserId?' (moi)':''} — {u.role==='admin'?'Admin':u.role==='commercial'?'Commercial':u.role==='partner'?'Partenaire':'Standard'}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="block text-xs font-bold uppercase tracking-widest text-white/30 mb-2">Notes</label>
-            <textarea
-              rows={3}
+            <textarea rows={3}
               className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white placeholder-white/20 outline-none focus:border-white/30 transition-all resize-none"
-              placeholder="Notes internes…"
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-            />
+              placeholder="Notes internes…" value={notes} onChange={e=>setNotes(e.target.value)}/>
           </div>
           {error && (
             <div className="flex items-start gap-2 text-rose-400 text-sm bg-rose-500/10 border border-rose-500/20 rounded-xl px-4 py-3">
@@ -265,6 +280,8 @@ export default function PipelinePage() {
   const [columns,       setColumns]       = useState<Record<LeadStatus, Lead[]>>({ new: [], in_progress: [], converted: [], lost: [] });
   const [contacts,      setContacts]      = useState<Contact[]>([]);
   const [currentUserId, setCurrentUserId] = useState('');
+  const [users,         setUsers]         = useState<UserProfile[]>([]);
+  const [isAdmin,       setIsAdmin]       = useState(false);
   const [loading,       setLoading]       = useState(true);
   const [modalMode,     setModalMode]     = useState<'create' | 'edit' | null>(null);
   const [editingLead,   setEditingLead]   = useState<Lead | undefined>(undefined);
@@ -291,6 +308,17 @@ export default function PipelinePage() {
         .select('id, first_name, last_name, email')
         .order('first_name');
       if (ctcts) setContacts(ctcts as Contact[]);
+
+      // Load users for assignment
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+      const admin = profile?.role === 'admin'; setIsAdmin(admin);
+      if (admin) {
+        const { data: us } = await supabase.from('profiles').select('id,full_name,email,role').order('full_name',{ascending:true});
+        setUsers((us??[]) as UserProfile[]);
+      } else {
+        const { data: me } = await supabase.from('profiles').select('id,full_name,email,role').eq('id',user.id).maybeSingle();
+        if (me) setUsers([me as UserProfile]);
+      }
 
       setLoading(false);
     }
@@ -437,6 +465,8 @@ export default function PipelinePage() {
           defaultStatus={addForStatus}
           contacts={contacts}
           currentUserId={currentUserId}
+          users={users}
+          isAdmin={isAdmin}
           onClose={() => { setModalMode(null); setEditingLead(undefined); }}
           onSaved={handleSaved}
         />

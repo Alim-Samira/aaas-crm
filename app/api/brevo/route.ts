@@ -1,6 +1,6 @@
 // app/api/brevo/campaign/route.ts
-// ✅ FIX envoi : logs détaillés + test endpoint GET ?test=1
-// ✅ Fallback : si aucun contact, envoie à l'admin lui-même
+//     FIX envoi : logs détaillés + test endpoint GET ?test=1
+//     Fallback : si aucun contact, envoie à l'admin lui-même
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
 
@@ -38,10 +38,10 @@ export async function GET(req: NextRequest) {
     body: JSON.stringify({
       sender:      { name: SENDER_NAME, email: SENDER_EMAIL },
       to:          [{ email: user.email, name: 'Admin Test' }],
-      subject:     '✅ Test Brevo AAAS CRM — ça marche !',
+      subject:     '    Test Brevo AAAS CRM — ça marche !',
       htmlContent: `<div style="font-family:sans-serif;padding:32px;background:#0f1629;color:#e2e8f0;border-radius:16px;max-width:500px;margin:auto;">
         <div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;color:white;font-weight:900;font-style:italic;margin-bottom:20px;">A</div>
-        <h2 style="color:#a5b4fc;margin:0 0 12px;">✅ Brevo fonctionne parfaitement</h2>
+        <h2 style="color:#a5b4fc;margin:0 0 12px;">    Brevo fonctionne parfaitement</h2>
         <p style="color:#94a3b8;line-height:1.7;">Votre configuration Brevo est correcte. Les campagnes email AAAS CRM vont bien arriver dans les boîtes mail.</p>
         <div style="background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);border-radius:12px;padding:16px;margin-top:20px;">
           <p style="color:#c7d2fe;font-size:13px;margin:0;"><strong>Expéditeur :</strong> ${SENDER_EMAIL}</p>
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    message: '✅ Email de test envoyé !',
+    message: '    Email de test envoyé !',
     messageId: json.messageId,
     to: user.email,
     sender: SENDER_EMAIL,
@@ -196,7 +196,7 @@ export async function POST(req: NextRequest) {
         const json = await res.json();
         if (res.ok) {
           sent++;
-          console.log(`[brevo] ✅ ${recipient.email} — messageId: ${json.messageId}`);
+          console.log(`[brevo]     ${recipient.email} — messageId: ${json.messageId}`);
         } else {
           const errMsg = `${recipient.email}: ${json.message ?? res.status}`;
           errors.push(errMsg);

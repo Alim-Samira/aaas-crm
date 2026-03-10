@@ -1,5 +1,5 @@
 // app/campaigns/page.tsx
-// ✅ PREMIUM GLASSMORPHISM — aperçu haute qualité · éditeur riche · brouillons/envoyées
+//     PREMIUM GLASSMORPHISM — aperçu haute qualité · éditeur riche · brouillons/envoyées
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -54,7 +54,7 @@ Nous avons une offre exceptionnelle pour vous.
 🔥 PROMOTION LIMITÉE
 Bénéficiez de -30% sur l'ensemble de nos prestations.
 
-✅ Ce qui est inclus :
+    Ce qui est inclus :
 • Audit complet de votre stratégie digitale
 • Configuration CRM personnalisée
 • Formation de votre équipe (2 jours)
@@ -782,7 +782,7 @@ export default function CampaignsPage() {
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? 'Erreur envoi');
-      setFeedback(`✅ "${c.name}" envoyée à ${j.sent} destinataire${j.sent !== 1 ? 's' : ''} !`);
+      setFeedback(`    "${c.name}" envoyée à ${j.sent} destinataire${j.sent !== 1 ? 's' : ''} !`);
       setTab('sent');
       load();
     } catch (e: any) { setErrMsg(e.message); }

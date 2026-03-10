@@ -405,7 +405,7 @@ function UserManagementPanel({
       });
       const json = await res.json();
       if (!res.ok) { setFormError(json.error ?? 'Erreur création'); setSaving(false); return; }
-      setFeedback(`✅ Compte créé : ${invEmail}`);
+      setFeedback(`    Compte créé : ${invEmail}`);
       setInvEmail(''); setInvName(''); setInvPwd(''); setShowForm(false);
       await load(); setTimeout(() => setFeedback(''), 3500);
     } catch (err: any) { setFormError(err.message ?? 'Erreur réseau'); }
@@ -1058,7 +1058,7 @@ function CampaignsPanel() {
       const res = await fetch('/api/brevo/campaign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ campaignId: c.id }) });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? 'Erreur envoi');
-      setFeedback(`✅ "${c.name}" envoyée à ${j.sent} destinataire${j.sent !== 1 ? 's' : ''} !`);
+      setFeedback(`    "${c.name}" envoyée à ${j.sent} destinataire${j.sent !== 1 ? 's' : ''} !`);
       setTab('sent');
       load();
     } catch (e: any) { setErrMsg(e.message); }

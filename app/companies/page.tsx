@@ -208,7 +208,7 @@ export default function CompaniesPage() {
                     {c.industry && <p className="text-white/40 text-xs truncate">{c.industry}</p>}
                   </div>
                 </div>
-                {/* ✅ Boutons Modifier + Supprimer */}
+                {/*     Boutons Modifier + Supprimer */}
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                   <button
                     onClick={() => { setEditing(c); setModalMode('edit'); }}
