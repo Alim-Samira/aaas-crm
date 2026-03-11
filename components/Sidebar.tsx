@@ -1,11 +1,11 @@
 'use client';
 // components/Sidebar.tsx
-//  MOBILE FRIENDLY — hamburger + bottom nav bar on mobile
-//  Notification bell + drawer (bottom sheet on mobile, side panel on desktop)
-//  Responsive: sidebar on desktop (≥768px), top bar + bottom nav on mobile
+// MOBILE FRIENDLY — hamburger + bottom nav bar on mobile
+// Notification bell + drawer (bottom sheet on mobile, side panel on desktop)
+// Responsive: sidebar on desktop (≥768px), top bar + bottom nav on mobile
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, GitMerge, Users, Building2,
@@ -185,6 +185,7 @@ function NotificationDrawer({ open, onClose, notifications, setNotifications, lo
 /* ─── Main Sidebar component ─────────────────────────────────── */
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const supabase = getSupabaseClient();
   const [role,          setRole]          = useState<string|null>(null);
   const [userId,        setUserId]        = useState('');
@@ -233,11 +234,10 @@ export default function Sidebar() {
 
   async function loadNotifs(uid:string){ setNotifLoading(true); const {data}=await supabase.from('notifications').select('*').eq('user_id',uid).order('created_at',{ascending:false}).limit(50); if(data) setNotifications(data as Notification[]); setNotifLoading(false); }
   async function handleSignOut(){
-    try {
-      await supabase.auth.signOut();
-    } catch(e) { /* ignore */ }
-    // Force hard redirect to login — clears all state
-    window.location.replace('/auth/login');
+    try { await supabase.auth.signOut(); } catch(e) { /* ignore */ }
+    router.push('/auth/login');
+    // Belt and suspenders: if router fails, force reload
+    setTimeout(() => { window.location.replace('/auth/login'); }, 500);
   }
 
   if(pathname?.startsWith('/auth')) return null;
